@@ -18,7 +18,6 @@ import { AgendaList } from '@/components/dashboard/AgendaList';
 import { PersonalTasks } from '@/components/dashboard/PersonalTasks';
 import { GoogleTasksList } from '@/components/dashboard/GoogleTasksList';
 import { ImportantMail } from '@/components/dashboard/ImportantMail';
-import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
 import { ConnectGoogleBanner } from '@/components/dashboard/ConnectGoogleBanner';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
@@ -133,9 +132,6 @@ export function DashboardShell() {
 
             {/* Row 6: Mail */}
             <ImportantMail />
-
-            {/* Row 7: Connected Sources */}
-            <ConnectedSources />
           </div>
         </main>
       </div>

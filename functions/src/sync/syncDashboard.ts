@@ -142,6 +142,9 @@ export const syncDashboard = onCall(
       ? "partial_error"
       : "warning";
 
+    const nowIso = now.toDate().toISOString();
+    const nextSyncIso = nextSyncAt.toDate().toISOString();
+
     // Update dashboard with final sync status
     await dashRef.set(
       {
@@ -154,6 +157,17 @@ export const syncDashboard = onCall(
           nextScheduledSyncAt: nextSyncAt,
           warnings: allWarnings.slice(0, 50), // cap stored warnings
         },
+        syncStatus: {
+          syncing: false,
+          lastSyncedAt: nowIso,
+          nextSyncAt: nextSyncIso,
+          sourceHealth: {
+            calendar: { status: sourceHealth["calendar"], lastSyncedAt: nowIso },
+            gmail: { status: sourceHealth["mail"], lastSyncedAt: nowIso },
+            tasks: { status: sourceHealth["tasks"], lastSyncedAt: nowIso },
+          },
+        },
+        syncedAt: nowIso,
         updatedAt: now,
       },
       { merge: true }

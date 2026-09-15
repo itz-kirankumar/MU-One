@@ -48,6 +48,136 @@ function formatReceivedDate(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+const MONTHS_MAP: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+  jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8,
+  sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
+};
+const MONTH_REGEX_PART = Object.keys(MONTHS_MAP).join('|');
+
+function toIsoDateStr(y: number, m: number, d: number): string {
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+export function extractMailDueDate(
+  subject?: string,
+  snippet?: string,
+  receivedAt?: string
+): string | null {
+  const text = `${subject || ''}\n${snippet || ''}`;
+  if (!text.trim()) return null;
+
+  const baseDate = receivedAt ? new Date(receivedAt) : new Date();
+  const validBase = isNaN(baseDate.getTime()) ? new Date() : baseDate;
+  const currentYear = validBase.getFullYear();
+  const lower = text.toLowerCase();
+
+  const triggerPattern =
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b/i;
+  if (!triggerPattern.test(text)) {
+    return null;
+  }
+
+  // "due today"
+  if (
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.]{0,35}\btoday\b/i.test(
+      lower
+    )
+  ) {
+    return toIsoDateStr(validBase.getFullYear(), validBase.getMonth() + 1, validBase.getDate());
+  }
+
+  // "due tomorrow"
+  if (
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.]{0,35}\btomorrow\b/i.test(
+      lower
+    )
+  ) {
+    const tom = new Date(validBase);
+    tom.setDate(tom.getDate() + 1);
+    return toIsoDateStr(tom.getFullYear(), tom.getMonth() + 1, tom.getDate());
+  }
+
+  // "due YYYY-MM-DD"
+  const isoMatch = text.match(
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.\d]{0,35}(\d{4}-\d{2}-\d{2})\b/i
+  );
+  if (isoMatch) {
+    const d = new Date(isoMatch[2]);
+    if (!isNaN(d.getTime())) return isoMatch[2];
+  }
+
+  // "due dd/mm/yyyy" or "due dd-mm-yyyy"
+  const dmyMatch = text.match(
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^\d]{0,35}(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/i
+  );
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[2], 10);
+    const month = parseInt(dmyMatch[3], 10);
+    let year = parseInt(dmyMatch[4], 10);
+    if (year < 100) year += 2000;
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return toIsoDateStr(year, month, day);
+    }
+  }
+
+  // "due 15 September [2026]" or "Deadline: 15th Sept 2026"
+  const dayMonthYearMatch = text.match(
+    new RegExp(
+      `\\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\\b[^.\\d]{0,35}(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+(${MONTH_REGEX_PART})(?:,?\\s*(\\d{4}))?\\b`,
+      'i'
+    )
+  );
+  if (dayMonthYearMatch) {
+    const day = parseInt(dayMonthYearMatch[2], 10);
+    const monthName = dayMonthYearMatch[3].toLowerCase();
+    const month = MONTHS_MAP[monthName];
+    const year = dayMonthYearMatch[4] ? parseInt(dayMonthYearMatch[4], 10) : currentYear;
+    if (month && day >= 1 && day <= 31) {
+      return toIsoDateStr(year, month, day);
+    }
+  }
+
+  // "due September 15 [, 2026]" or "Deadline: Sept 15th, 2026"
+  const monthDayYearMatch = text.match(
+    new RegExp(
+      `\\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\\b[^.\\d]{0,35}(${MONTH_REGEX_PART})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(\\d{4}))?\\b`,
+      'i'
+    )
+  );
+  if (monthDayYearMatch) {
+    const monthName = monthDayYearMatch[2].toLowerCase();
+    const month = MONTHS_MAP[monthName];
+    const day = parseInt(monthDayYearMatch[3], 10);
+    const year = monthDayYearMatch[4] ? parseInt(monthDayYearMatch[4], 10) : currentYear;
+    if (month && day >= 1 && day <= 31) {
+      return toIsoDateStr(year, month, day);
+    }
+  }
+
+  return null;
+}
+
+function formatMailDueDate(isoDate: string): string {
+  const parts = isoDate.split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const d = new Date(year, monthIndex, day);
+    if (!isNaN(d.getTime())) {
+      const currentYear = new Date().getFullYear();
+      const monthStr = d.toLocaleDateString('en-GB', { month: 'short' });
+      if (year !== currentYear) {
+        return `${day} ${monthStr} ${year}`;
+      }
+      return `${day} ${monthStr}`;
+    }
+  }
+  return isoDate;
+}
+
 function MailRow({
   mail,
   onClick,
@@ -57,6 +187,8 @@ function MailRow({
 }) {
   const senderName = mail.sender || mail.from || mail.fromEmail || 'Masters\' Union';
   const avatarBg = getAvatarColor(senderName);
+  const effectiveDueDate = mail.dueDate || extractMailDueDate(mail.subject, mail.snippet, mail.receivedAt);
+  const hasDeadline = Boolean(effectiveDueDate) || Boolean(mail.isDeadlineSignal);
 
   return (
     <div
@@ -86,9 +218,16 @@ function MailRow({
           <span className="truncate text-sm font-medium text-gray-200 group-hover:text-white transition-colors">
             {senderName}
           </span>
-          <span className="flex-shrink-0 text-[10px] text-gray-500">
-            {formatReceivedDate(mail.receivedAt)}
-          </span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {effectiveDueDate && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 tabular-nums">
+                Due {formatMailDueDate(effectiveDueDate)}
+              </span>
+            )}
+            <span className="text-[10px] text-gray-500">
+              {formatReceivedDate(mail.receivedAt)}
+            </span>
+          </div>
         </div>
         <p className="mt-0.5 truncate text-sm text-gray-300 font-medium group-hover:text-[#f7d344] transition-colors">
           {mail.subject}
@@ -97,14 +236,10 @@ function MailRow({
           {mail.snippet}
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {mail.isDeadlineSignal && <Badge variant="error">Deadline</Badge>}
-          {mail.dueDate && (
+          {hasDeadline && <Badge variant="error">Deadline</Badge>}
+          {effectiveDueDate && (
             <Badge variant="warning">
-              Due{' '}
-              {new Date(mail.dueDate + 'T00:00:00').toLocaleDateString('en-GB', {
-                day: 'numeric',
-                month: 'short',
-              })}
+              Due {formatMailDueDate(effectiveDueDate)}
             </Badge>
           )}
         </div>
@@ -129,9 +264,32 @@ export function ImportantMail() {
     dashboardData?.mailSignals ??
     (dashboardData as { importantMail?: MailSignal[] })?.importantMail ??
     [];
-  const mails = [...rawMails].sort(
-    (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-  );
+
+  const mails = [...rawMails].sort((a, b) => {
+    const dueA = a.dueDate || extractMailDueDate(a.subject, a.snippet, a.receivedAt);
+    const dueB = b.dueDate || extractMailDueDate(b.subject, b.snippet, b.receivedAt);
+
+    // Both have due dates: sort by due date ascending (top to bottom chronological order)
+    if (dueA && dueB) {
+      const diff = dueA.localeCompare(dueB);
+      if (diff !== 0) return diff;
+      return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+    }
+
+    // A has a due date, B does not: A comes first (top)
+    if (dueA && !dueB) return -1;
+    // B has a due date, A does not: B comes first (top)
+    if (!dueA && dueB) return 1;
+
+    // Next: emails with deadline signals (but no date) come before regular mail
+    const sigA = Boolean(a.isDeadlineSignal);
+    const sigB = Boolean(b.isDeadlineSignal);
+    if (sigA && !sigB) return -1;
+    if (!sigA && sigB) return 1;
+
+    // Regular emails: sort by receivedAt descending (newest first)
+    return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+  });
 
   return (
     <>

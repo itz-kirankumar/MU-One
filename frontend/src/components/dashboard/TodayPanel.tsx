@@ -1,16 +1,43 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, CheckSquare, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDashboard } from '@/contexts/DashboardContext';
-import { updatePersonalTask } from '@/lib/firestore';
+import { updatePersonalTask, createPersonalTask, deletePersonalTask } from '@/lib/firestore';
 import { importTodaySuggestion } from '@/lib/functions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import type { NormalizedEvent, MailSignal, PersonalTask } from '@/types';
 
-const TODAY_ISO = new Date().toISOString().slice(0, 10);
+function getLocalDateIso(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatTime12h(date: Date): string {
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minStr = minutes < 10 ? '0' + minutes : minutes;
+  return `${hours}:${minStr} ${ampm}`;
+}
+
+function formatEventTime(isoStart: string, isoEnd?: string, allDay?: boolean): string {
+  if (allDay || !isoStart || !isoStart.includes('T')) return 'All day';
+  const start = new Date(isoStart);
+  if (isNaN(start.getTime())) return 'All day';
+  const startStr = formatTime12h(start);
+  if (!isoEnd || !isoEnd.includes('T')) return startStr;
+  const end = new Date(isoEnd);
+  if (isNaN(end.getTime())) return startStr;
+  const endStr = formatTime12h(end);
+  return `${startStr} – ${endStr}`;
+}
 
 interface ImportConfirmProps {
   title: string;
@@ -71,26 +98,66 @@ export function TodayPanel() {
     dueDate?: string;
   } | null>(null);
 
+  const [manualTask, setManualTask] = useState('');
+  const [addingManual, setAddingManual] = useState(false);
+  const [manualError, setManualError] = useState('');
+
+  const todayDateStr = getLocalDateIso();
+
   // Personal tasks due today
   const todayPersonalTasks = personalTasks.filter(
-    (t) => t.dueDate === TODAY_ISO
+    (t) => t.dueDate === todayDateStr || t.dueDate?.slice(0, 10) === todayDateStr
   );
 
-  // Calendar events today
-  const todayEvents = (dashboardData?.events ?? []).filter((e) =>
-    e.startIso.startsWith(TODAY_ISO)
-  );
+  // Calendar events today, sorted chronologically by start time
+  const todayEvents = (dashboardData?.events ?? [])
+    .filter((e) => {
+      const eDate = e.startIso?.slice(0, 10);
+      return eDate === todayDateStr || e.startIso?.startsWith(todayDateStr);
+    })
+    .sort((a, b) => {
+      if (a.allDay && !b.allDay) return -1;
+      if (!a.allDay && b.allDay) return 1;
+      return a.startIso.localeCompare(b.startIso);
+    });
 
   // Mail with dueDate today
-  const todayMail = (dashboardData?.mailSignals ?? []).filter(
-    (m) => m.dueDate === TODAY_ISO
-  );
+  const todayMail = (dashboardData?.mailSignals ?? []).filter((m) => {
+    const due = m.dueDate;
+    return due === todayDateStr || due?.slice(0, 10) === todayDateStr;
+  });
 
   const isEmpty = todayPersonalTasks.length === 0 && todayEvents.length === 0 && todayMail.length === 0;
 
   async function handleToggleTask(task: PersonalTask) {
     if (!user) return;
     await updatePersonalTask(user.uid, task.id, { completed: !task.completed });
+  }
+
+  async function handleDeleteTask(taskId: string) {
+    if (!user) return;
+    await deletePersonalTask(user.uid, taskId);
+  }
+
+  async function handleAddManualTask(e: React.FormEvent) {
+    e.preventDefault();
+    const text = manualTask.trim();
+    if (!text || !user || addingManual) return;
+    setAddingManual(true);
+    setManualError('');
+    try {
+      await createPersonalTask(user.uid, {
+        title: text,
+        dueDate: todayDateStr,
+        importance: 'normal',
+        completed: false,
+      });
+      setManualTask('');
+    } catch (err: unknown) {
+      setManualError(err instanceof Error ? err.message : 'Failed to add task');
+    } finally {
+      setAddingManual(false);
+    }
   }
 
   async function handleImport() {
@@ -102,9 +169,41 @@ export function TodayPanel() {
   return (
     <>
       <section className="rounded-xl border border-[#222] bg-[#161616] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#1A1A1A]">
-          <h3 className="text-sm font-semibold text-white">Today</h3>
+        <div className="px-5 py-4 border-b border-[#1A1A1A] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-white">Today</h3>
+            <span className="text-[10px] text-gray-500 bg-[#202020] px-2 py-0.5 rounded border border-[#2A2A2A]">
+              {todayEvents.length + todayPersonalTasks.length + todayMail.length} items
+            </span>
+          </div>
         </div>
+
+        {/* Manual Quick Add Task for Today */}
+        <form onSubmit={handleAddManualTask} className="px-4 pt-3 pb-2 border-b border-[#1A1A1A]/80">
+          <div className="flex items-center gap-2 rounded-lg bg-[#111111] border border-[#262626] px-3 py-1.5 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+            <Plus className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />
+            <input
+              type="text"
+              value={manualTask}
+              onChange={(e) => setManualTask(e.target.value)}
+              placeholder="Add task or note for today..."
+              className="flex-1 bg-transparent text-xs text-gray-200 placeholder-gray-500 focus:outline-none"
+              disabled={addingManual}
+            />
+            {manualTask.trim() && (
+              <button
+                type="submit"
+                disabled={addingManual}
+                className="flex-shrink-0 rounded bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-500 transition-colors"
+              >
+                {addingManual ? 'Adding…' : 'Add'}
+              </button>
+            )}
+          </div>
+          {manualError && (
+            <p className="mt-1 text-[10px] text-red-400 px-1">{manualError}</p>
+          )}
+        </form>
 
         <div className="px-4 py-3 space-y-1">
           {isEmpty ? (
@@ -113,7 +212,7 @@ export function TodayPanel() {
             <>
               {/* Personal tasks */}
               {todayPersonalTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[#1A1A1A] transition-colors">
+                <div key={task.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#1A1A1A] transition-colors group">
                   <button
                     onClick={() => handleToggleTask(task)}
                     aria-label={task.completed ? `Mark "${task.title}" incomplete` : `Complete "${task.title}"`}
@@ -122,36 +221,58 @@ export function TodayPanel() {
                     {task.completed ? (
                       <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden="true" />
                     ) : (
-                      <Circle className="h-4 w-4" aria-hidden="true" />
+                      <Circle className="h-4 w-4 text-gray-500" aria-hidden="true" />
                     )}
                   </button>
-                  <span className={`flex-1 text-sm ${task.completed ? 'line-through text-gray-600' : 'text-gray-200'}`}>
-                    {task.title}
-                  </span>
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                    <span className={`truncate text-sm ${task.completed ? 'line-through text-gray-600' : 'text-gray-200'}`}>
+                      {task.title}
+                    </span>
+                    <span className="flex-shrink-0 rounded bg-[#202020] border border-[#2A2A2A] px-2 py-0.5 text-[10px] text-gray-400">
+                      Task
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    title="Delete task"
+                    className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-gray-600 hover:text-red-400 p-1 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
 
               {/* Calendar events today */}
               {todayEvents.map((ev, idx) => {
                 const eventId = ev.id || ev.googleEventId || ev.iCalUID || `today-ev-${idx}`;
+                const timeDisplay = formatEventTime(ev.startIso, ev.endIso, ev.allDay || ev.isAllDay);
                 return (
-                  <div key={eventId} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[#1A1A1A] transition-colors">
+                  <div key={eventId} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#1A1A1A] transition-colors group">
                     <div className="h-4 w-4 flex-shrink-0 flex items-center justify-center">
                       <div className="h-2 w-2 rounded-full bg-[#f7d344]" />
                     </div>
-                    <span className="flex-1 min-w-0 truncate text-sm text-gray-200">{ev.title}</span>
+                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                      <span className="truncate text-sm text-gray-200 group-hover:text-white transition-colors" title={ev.title}>
+                        {ev.title}
+                      </span>
+                      <span className="flex-shrink-0 rounded bg-[#222] border border-[#2e2e2e] px-2 py-0.5 text-[11px] font-medium text-amber-300 tabular-nums">
+                        {timeDisplay}
+                      </span>
+                    </div>
                     <button
                       onClick={() =>
                         setPendingImport({
                           sourceType: 'calendar',
                           sourceId: eventId,
                           title: ev.title,
-                          dueDate: TODAY_ISO,
+                          dueDate: todayDateStr,
                         })
                       }
-                      className="flex-shrink-0 text-[10px] text-gray-500 hover:text-[#f7d344] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded"
+                      title="Add to Google Tasks"
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold bg-[#0D1E3A] hover:bg-[#152B52] text-[#60A5FA] border border-[#1E3A6B] hover:border-[#2E5899] transition-all shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                     >
-                      + Task
+                      <CheckSquare className="h-3 w-3 text-[#60A5FA]" aria-hidden="true" />
+                      <span>+ Task</span>
                     </button>
                   </div>
                 );
@@ -161,23 +282,32 @@ export function TodayPanel() {
               {todayMail.map((mail, idx) => {
                 const mailKey = mail.id || mail.messageId || `today-mail-${idx}`;
                 return (
-                  <div key={mailKey} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[#1A1A1A] transition-colors">
+                  <div key={mailKey} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#1A1A1A] transition-colors group">
                     <div className="h-4 w-4 flex-shrink-0 flex items-center justify-center">
                       <div className="h-2 w-2 rounded-full bg-blue-400" />
                     </div>
-                    <span className="flex-1 min-w-0 truncate text-sm text-gray-200">{mail.subject}</span>
+                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                      <span className="truncate text-sm text-gray-200 group-hover:text-white transition-colors" title={mail.subject}>
+                        {mail.subject}
+                      </span>
+                      <span className="flex-shrink-0 rounded bg-blue-950/50 border border-blue-800/50 px-2 py-0.5 text-[10px] font-semibold text-blue-300">
+                        Due Today
+                      </span>
+                    </div>
                     <button
                       onClick={() =>
                         setPendingImport({
                           sourceType: 'mail',
                           sourceId: mail.messageId || mailKey,
                           title: mail.subject,
-                          dueDate: TODAY_ISO,
+                          dueDate: todayDateStr,
                         })
                       }
-                      className="flex-shrink-0 text-[10px] text-gray-500 hover:text-[#f7d344] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded"
+                      title="Add to Google Tasks"
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold bg-[#0D1E3A] hover:bg-[#152B52] text-[#60A5FA] border border-[#1E3A6B] hover:border-[#2E5899] transition-all shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                     >
-                      + Task
+                      <CheckSquare className="h-3 w-3 text-[#60A5FA]" aria-hidden="true" />
+                      <span>+ Task</span>
                     </button>
                   </div>
                 );

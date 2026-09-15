@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -69,7 +70,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 p-2" aria-label="Main navigation">
+      <nav className="space-y-0.5 p-2" aria-label="Main navigation">
         <a
           href="/dashboard"
           className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-white bg-[#1A1A1A] border border-[#2A2A2A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
@@ -93,6 +94,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           )}
         </a>
       </nav>
+
+      {/* Connected Sources */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 border-t border-[#1A1A1A] custom-scrollbar">
+        <ConnectedSources inSidebar collapsed={collapsed} />
+      </div>
 
       {/* User + sign out */}
       <div className="border-t border-[#1A1A1A] p-3 space-y-2">
@@ -149,7 +155,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <nav className="flex-1 space-y-0.5 p-2" aria-label="Main navigation">
+              <nav className="space-y-0.5 p-2" aria-label="Main navigation">
                 <a
                   href="/dashboard"
                   className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-white bg-[#1A1A1A] border border-[#2A2A2A]"
@@ -168,6 +174,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                   Coach Portal
                 </a>
               </nav>
+
+              {/* Connected Sources */}
+              <div className="flex-1 overflow-y-auto px-2 py-3 border-t border-[#1A1A1A] custom-scrollbar">
+                <ConnectedSources inSidebar collapsed={false} />
+              </div>
               <div className="border-t border-[#1A1A1A] p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f7d344] text-[10px] font-bold text-black">

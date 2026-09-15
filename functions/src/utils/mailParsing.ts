@@ -67,7 +67,7 @@ export function normalizeMessage(message: Record<string, unknown>): NormalizedMa
   );
 
   const receivedAtDate = new Date(receivedAt);
-  const dueDate = inferDueDate(bodyText + " " + subject, receivedAtDate);
+  const dueDate = inferDueDate(subject + "\n" + bodyText, receivedAtDate);
 
   const gmailLink = `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
 
@@ -176,18 +176,18 @@ export function inferDueDate(text: string, receivedAt: Date): string | null {
   const lower = text.toLowerCase();
 
   const triggerPattern =
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?)\b/i;
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b/i;
   if (!triggerPattern.test(text)) {
     return null;
   }
 
   // "due today" / "submit by today"
-  if (/\b(due|deadline|submit(?: by)?|submission(?: by)?)\b[^.]{0,30}\btoday\b/i.test(lower)) {
+  if (/\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.]{0,35}\btoday\b/i.test(lower)) {
     return toIsoDate(receivedAt);
   }
 
   // "due tomorrow"
-  if (/\b(due|deadline|submit(?: by)?|submission(?: by)?)\b[^.]{0,30}\btomorrow\b/i.test(lower)) {
+  if (/\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.]{0,35}\btomorrow\b/i.test(lower)) {
     const tomorrow = new Date(receivedAt);
     tomorrow.setDate(tomorrow.getDate() + 1);
     return toIsoDate(tomorrow);
@@ -195,21 +195,22 @@ export function inferDueDate(text: string, receivedAt: Date): string | null {
 
   // "due YYYY-MM-DD"
   const isoMatch = text.match(
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?)\b[^.\d]{0,30}(\d{4}-\d{2}-\d{2})\b/i
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.\d]{0,35}(\d{4}-\d{2}-\d{2})\b/i
   );
   if (isoMatch) {
     const d = new Date(isoMatch[2]);
     if (!isNaN(d.getTime())) return isoMatch[2];
   }
 
-  // "due dd/mm/yyyy"
+  // "due dd/mm/yyyy" or "due dd-mm-yyyy"
   const dmyMatch = text.match(
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?)\b[^.\d]{0,30}(\d{1,2})\/(\d{1,2})\/(\d{4})\b/i
+    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^\d]{0,35}(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/i
   );
   if (dmyMatch) {
     const day = parseInt(dmyMatch[2], 10);
     const month = parseInt(dmyMatch[3], 10);
-    const year = parseInt(dmyMatch[4], 10);
+    let year = parseInt(dmyMatch[4], 10);
+    if (year < 100) year += 2000;
     const d = new Date(year, month - 1, day);
     if (!isNaN(d.getTime())) return toIsoDate(d);
   }
@@ -218,14 +219,14 @@ export function inferDueDate(text: string, receivedAt: Date): string | null {
     january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
     july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
     jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8,
-    sep: 9, oct: 10, nov: 11, dec: 12,
+    sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
   };
   const MONTH_NAMES = Object.keys(MONTHS).join("|");
 
-  // "due 15 September [2024]"
+  // "due 15 September [2024]" or "Deadline: 15th Sept 2026"
   const dayMonthYearMatch = text.match(
     new RegExp(
-      `\\b(due|deadline|submit(?: by)?|submission(?: by)?)\\b[^.\\d]{0,30}(\\d{1,2})\\s+(${MONTH_NAMES})\\s*(\\d{4})?\\b`,
+      `\\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\\b[^.\\d]{0,35}(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+(${MONTH_NAMES})(?:,?\\s*(\\d{4}))?\\b`,
       "i"
     )
   );
@@ -242,10 +243,10 @@ export function inferDueDate(text: string, receivedAt: Date): string | null {
     }
   }
 
-  // "due September 15 [, 2024]"
+  // "due September 15 [, 2024]" or "Deadline: Sept 15th, 2026"
   const monthDayYearMatch = text.match(
     new RegExp(
-      `\\b(due|deadline|submit(?: by)?|submission(?: by)?)\\b[^.\\d]{0,30}(${MONTH_NAMES})\\s+(\\d{1,2})(?:,?\\s*(\\d{4}))?\\b`,
+      `\\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\\b[^.\\d]{0,35}(${MONTH_NAMES})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(\\d{4}))?\\b`,
       "i"
     )
   );

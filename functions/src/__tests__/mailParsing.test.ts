@@ -76,6 +76,42 @@ describe("inferDueDate", () => {
     const result = inferDueDate("Assignment due 20/09/2024", FIXED_DATE);
     expect(result).toBe("2024-09-20");
   });
+
+  it("returns correct date for 'Mandatory Audit Submission (Deadline: 15th Sept 2026, EOD)'", () => {
+    const result = inferDueDate(
+      "Mandatory Audit Submission (Deadline: 15th Sept 2026, EOD)– Dropshipping Challenge Ends!",
+      FIXED_DATE
+    );
+    expect(result).toBe("2026-09-15");
+  });
+
+  it("returns correct date for 'conclude on 15th Sept 2026'", () => {
+    const result = inferDueDate(
+      "The Dropshipping Challenge will officially conclude on 15th Sept 2026, EOD.",
+      FIXED_DATE
+    );
+    expect(result).toBe("2026-09-15");
+  });
+
+  it("returns correct date for 'due 15th of September 2026'", () => {
+    const result = inferDueDate("due 15th of September 2026", FIXED_DATE);
+    expect(result).toBe("2026-09-15");
+  });
+
+  it("returns correct date for 'Deadline: Sept 15th, 2026'", () => {
+    const result = inferDueDate("Deadline: Sept 15th, 2026", FIXED_DATE);
+    expect(result).toBe("2026-09-15");
+  });
+
+  it("returns correct date for dd-mm-yyyy pattern", () => {
+    const result = inferDueDate("Assignment due 15-09-2026", FIXED_DATE);
+    expect(result).toBe("2026-09-15");
+  });
+
+  it("returns correct date for 'Registration closes on 16 Oct'", () => {
+    const result = inferDueDate("Registration closes on 16 Oct", FIXED_DATE);
+    expect(result).toBe("2024-10-16");
+  });
 });
 
 describe("extractPlainText", () => {

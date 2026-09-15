@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   ExternalLink,
@@ -23,8 +23,6 @@ import {
   Tag,
   FolderInput,
   Printer,
-  Sun,
-  Moon,
   ChevronDown,
   ChevronUp,
   AlertOctagon,
@@ -33,6 +31,7 @@ import {
 import { getFullMailMessage, createGoogleTask } from '@/lib/functions';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Badge } from '@/components/ui/Badge';
+import { extractMailDueDate } from '@/components/dashboard/ImportantMail';
 import type { MailSignal } from '@/types';
 import type { GetFullMailResult, MailAttachmentInfo } from '@/lib/functions';
 
@@ -46,8 +45,8 @@ interface MailDrawerProps {
  */
 function getAvatarColor(name: string): string {
   const colors = [
-    '#EA4335', // Google Red
     '#1A73E8', // Google Blue
+    '#EA4335', // Google Red
     '#188038', // Google Green
     '#F29900', // Google Yellow/Amber
     '#9334E6', // Purple
@@ -90,12 +89,12 @@ function parseSender(fromStr?: string): { name: string; email: string } {
 function getAttachmentIcon(mimeType: string, filename: string) {
   const lower = (filename + ' ' + mimeType).toLowerCase();
   if (lower.includes('sheet') || lower.includes('excel') || lower.includes('csv') || lower.includes('xls')) {
-    return <FileSpreadsheet className="h-4 w-4 text-emerald-400 flex-shrink-0" aria-hidden="true" />;
+    return <FileSpreadsheet className="h-4 w-4 text-emerald-600 flex-shrink-0" aria-hidden="true" />;
   }
   if (lower.includes('image') || lower.includes('png') || lower.includes('jpg') || lower.includes('jpeg')) {
-    return <ImageIcon className="h-4 w-4 text-purple-400 flex-shrink-0" aria-hidden="true" />;
+    return <ImageIcon className="h-4 w-4 text-purple-600 flex-shrink-0" aria-hidden="true" />;
   }
-  return <FileText className="h-4 w-4 text-[#f7d344] flex-shrink-0" aria-hidden="true" />;
+  return <FileText className="h-4 w-4 text-[#1a73e8] flex-shrink-0" aria-hidden="true" />;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -124,6 +123,91 @@ function formatRelativeTime(dateStr: string): string {
   }
 }
 
+/**
+ * Intelligent HTML & text formatter that matches authentic Gmail rendering.
+ * Preserves bold formatting, paragraphs, spacing, and makes all URLs/emails clickable in Google Blue.
+ */
+function formatMailContent(html?: string, text?: string, snippet?: string): string {
+  if (html && html.trim() && html !== '<p></p>') {
+    let result = html;
+    // Disarm any dangerous javascript links
+    result = result.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
+    // Ensure all <a> links open in new tab and have Google Blue clickable styling
+    result = result.replace(/<a\b([^>]*)>/gi, (_match, attrs) => {
+      const cleanAttrs = attrs
+        .replace(/\starget\s*=\s*(["'][^"']*["']|[^\s>]+)/gi, '')
+        .replace(/\srel\s*=\s*(["'][^"']*["']|[^\s>]+)/gi, '');
+      return `<a ${cleanAttrs.trim()} target="_blank" rel="noopener noreferrer" style="color: #1a73e8; text-decoration: underline; cursor: pointer; font-weight: 500;">`;
+    });
+    return result;
+  }
+
+  // Fallback: format plain text or snippet into structured Gmail HTML
+  const raw = text || snippet || '';
+  if (!raw.trim()) {
+    return '<p style="color: #5f6368; font-style: italic;">No message content available.</p>';
+  }
+
+  // 1. Normalize line endings
+  let clean = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // 2. Escape HTML special characters
+  clean = clean
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  // 3. Convert markdown bold *text* to <strong>text</strong>
+  clean = clean.replace(/\*([^*\n]+)\*/g, '<strong style="font-weight: 600; color: #202124;">$1</strong>');
+
+  // 4. Convert markdown italics _text_ to <em>text</em>
+  clean = clean.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+
+  // 5. Convert URLs to clickable links opening in new tab
+  clean = clean.replace(
+    /(https?:\/\/[^\s<>"']+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #1a73e8; text-decoration: underline; word-break: break-all; cursor: pointer; font-weight: 500;">$1</a>'
+  );
+
+  clean = clean.replace(
+    /(^|[^\/])(www\.[^\s<>"']+)/g,
+    '$1<a href="https://$2" target="_blank" rel="noopener noreferrer" style="color: #1a73e8; text-decoration: underline; word-break: break-all; cursor: pointer; font-weight: 500;">$2</a>'
+  );
+
+  // 6. Convert email addresses to mailto links
+  clean = clean.replace(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+    '<a href="mailto:$1" style="color: #1a73e8; text-decoration: underline; cursor: pointer; font-weight: 500;">$1</a>'
+  );
+
+  // 7. If clean has genuine newlines, split into clean paragraphs
+  if (clean.includes('\n')) {
+    const paragraphs = clean.split(/\n{2,}/);
+    return paragraphs
+      .map((p) => `<p style="margin-bottom: 14px; line-height: 1.65;">${p.replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+  }
+
+  // 8. If newlines were squashed into spaces (e.g. snippet text), intelligently reconstruct paragraphs
+  let structured = clean;
+  structured = structured.replace(/(Dear [^,]+,)/g, '$1\n\n');
+  structured = structured.replace(/(We will be hosting)/g, '\n\n$1');
+  structured = structured.replace(/(This will be an opportunity)/g, '\n\n$1');
+  structured = structured.replace(/(The session will be)/g, '\n\n$1');
+  structured = structured.replace(/(Please note that)/g, '\n\n$1');
+  structured = structured.replace(/(<strong[^>]*>Form:<\/strong>|Form:)/g, '\n\n$1');
+  structured = structured.replace(/(Please fill out the form only)/g, '\n\n$1');
+  structured = structured.replace(/(<strong[^>]*>Deadline:<\/strong>|Deadline:)/g, '\n\n$1');
+  structured = structured.replace(/(Best Regards,)/g, '\n\n$1\n\n');
+  structured = structured.replace(/(Site:)/g, '\n\n$1');
+
+  const paras = structured.split(/\n{2,}/);
+  return paras
+    .map((p) => `<p style="margin-bottom: 14px; line-height: 1.65;">${p.replace(/\n/g, '<br/>')}</p>`)
+    .join('');
+}
+
 export function MailDrawer({ mail, onClose }: MailDrawerProps) {
   const [data, setData] = useState<GetFullMailResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,9 +217,6 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
   const [taskError, setTaskError] = useState('');
   const [isStarred, setIsStarred] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [isDarkCanvas, setIsDarkCanvas] = useState(false); // Default to authentic white Gmail canvas
-  const [iframeHeight, setIframeHeight] = useState<number>(380);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const gmailWebUrl = `https://mail.google.com/mail/u/0/#inbox/${mail.threadId ?? mail.messageId}`;
 
@@ -182,94 +263,27 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
     }
   }
 
+  // Intercept any link clicks inside the email body to open cleanly in new tab
+  const handleBodyClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (anchor && anchor.href) {
+      e.preventDefault();
+      window.open(anchor.href, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const rawFrom = data?.from || mail.sender || mail.from || mail.fromEmail || "Masters' Union";
   const { name: senderName, email: senderEmail } = parseSender(rawFrom);
   const avatarBg = getAvatarColor(senderName || senderEmail);
   const attachments: MailAttachmentInfo[] = data?.attachments ?? [];
   const senderDomain = senderEmail.includes('@') ? senderEmail.split('@')[1] : 'mastersunion.org';
 
-  // Build sandboxed iframe document with Gmail typography and clickable links
-  const srcDocHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <base target="_blank">
-  <style>
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
-    body {
-      margin: 0;
-      padding: 24px 28px;
-      font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      font-size: 14px;
-      line-height: 1.65;
-      color: ${isDarkCanvas ? '#e2e8f0' : '#202124'};
-      background-color: ${isDarkCanvas ? '#141414' : '#ffffff'};
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-    a {
-      color: ${isDarkCanvas ? '#8ab4f8' : '#1a73e8'} !important;
-      text-decoration: underline !important;
-      cursor: pointer !important;
-      font-weight: 500;
-    }
-    a:hover {
-      color: ${isDarkCanvas ? '#aecbfa' : '#174ea6'} !important;
-    }
-    p {
-      margin-top: 0;
-      margin-bottom: 14px;
-    }
-    img {
-      max-width: 100% !important;
-      height: auto !important;
-    }
-    table {
-      max-width: 100% !important;
-      border-collapse: collapse;
-    }
-    blockquote {
-      border-left: 3px solid ${isDarkCanvas ? '#3a3a3a' : '#dadce0'};
-      padding-left: 12px;
-      margin-left: 0;
-      color: ${isDarkCanvas ? '#9aa0a6' : '#5f6368'};
-    }
-    code, pre {
-      font-family: monospace;
-      font-size: 12px;
-    }
-  </style>
-</head>
-<body>
-  ${data?.formattedHtml || data?.body || mail.snippet || ''}
-</body>
-</html>`;
-
-  const handleIframeLoad = () => {
-    try {
-      if (iframeRef.current?.contentDocument?.body) {
-        const h = iframeRef.current.contentDocument.body.scrollHeight;
-        setIframeHeight(Math.max(h + 20, 350));
-      }
-    } catch {
-      // Ignore cross-origin access limitations
-    }
-  };
-
-  const handlePrint = () => {
-    try {
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.print();
-      } else {
-        window.print();
-      }
-    } catch {
-      window.print();
-    }
-  };
+  const renderedContentHtml = formatMailContent(
+    data?.formattedHtml,
+    data?.body,
+    mail.snippet
+  );
 
   return (
     <div
@@ -279,31 +293,93 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
       aria-modal="true"
       aria-label={`Email: ${mail.subject}`}
     >
-      {/* Gmail Reading Window */}
+      {/* Scoped CSS to ensure 100% authentic Gmail typography, tables, and links */}
+      <style>{`
+        .gmail-reading-pane {
+          font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+          font-size: 14px;
+          line-height: 1.65;
+          color: #202124;
+          word-break: break-word;
+        }
+        .gmail-reading-pane p {
+          margin-top: 0;
+          margin-bottom: 14px;
+          line-height: 1.65;
+        }
+        .gmail-reading-pane b, .gmail-reading-pane strong {
+          font-weight: 600;
+          color: #202124;
+        }
+        .gmail-reading-pane a {
+          color: #1a73e8 !important;
+          text-decoration: underline !important;
+          cursor: pointer !important;
+          font-weight: 500;
+        }
+        .gmail-reading-pane a:hover {
+          color: #174ea6 !important;
+        }
+        .gmail-reading-pane ul, .gmail-reading-pane ol {
+          margin-top: 6px;
+          margin-bottom: 14px;
+          padding-left: 24px;
+        }
+        .gmail-reading-pane li {
+          margin-bottom: 6px;
+        }
+        .gmail-reading-pane table {
+          border-collapse: collapse;
+          max-width: 100%;
+          margin: 14px 0;
+        }
+        .gmail-reading-pane th, .gmail-reading-pane td {
+          padding: 8px 12px;
+          border: 1px solid #dadce0;
+        }
+        .gmail-reading-pane hr {
+          border: none;
+          border-top: 1px solid #dadce0;
+          margin: 20px 0;
+        }
+        .gmail-reading-pane img {
+          max-width: 100%;
+          height: auto;
+          display: inline-block;
+        }
+        .gmail-reading-pane blockquote {
+          border-left: 3px solid #dadce0;
+          padding-left: 14px;
+          margin-left: 0;
+          color: #5f6368;
+        }
+      `}</style>
+
+      {/* Gmail Window Container */}
       <div
-        className="relative flex flex-col w-full max-w-4xl max-h-[94vh] rounded-2xl border border-[#2B2B2B] bg-[#161616] shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-full max-w-4xl max-h-[94vh] rounded-2xl border border-[#2D2D2D] bg-white shadow-2xl overflow-hidden text-[#202124]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 1. Gmail Top Action Toolbar */}
-        <div className="flex items-center justify-between border-b border-[#242424] bg-[#1D1D1D] px-3 sm:px-4 py-2.5 select-none text-gray-300">
+        {/* 1. Gmail Top Toolbar (Standard Gmail Actions) */}
+        <div className="flex items-center justify-between border-b border-[#E0E0E0] bg-[#F6F8FC] px-3 sm:px-4 py-2 select-none text-[#5F6368]">
           {/* Left Toolbar Icons */}
           <div className="flex items-center gap-1 sm:gap-1.5">
             <button
               onClick={onClose}
               title="Back to list (Esc)"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors focus:outline-none"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
 
-            <div className="h-4 w-[1px] bg-[#333] mx-1 hidden sm:block" />
+            <div className="h-4 w-[1px] bg-[#DADCE0] mx-1 hidden sm:block" />
 
             <a
               href={gmailWebUrl}
               target="_blank"
               rel="noopener noreferrer"
               title="Archive in Gmail"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors"
             >
               <Archive className="h-4 w-4" />
             </a>
@@ -313,7 +389,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Report spam"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors"
             >
               <AlertOctagon className="h-4 w-4" />
             </a>
@@ -323,19 +399,19 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Delete in Gmail"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors"
             >
               <Trash2 className="h-4 w-4" />
             </a>
 
-            <div className="h-4 w-[1px] bg-[#333] mx-1 hidden sm:block" />
+            <div className="h-4 w-[1px] bg-[#DADCE0] mx-1 hidden sm:block" />
 
             <a
               href={gmailWebUrl}
               target="_blank"
               rel="noopener noreferrer"
               title="Mark as unread"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors hidden sm:flex"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors hidden sm:flex"
             >
               <MailIcon className="h-4 w-4" />
             </a>
@@ -345,28 +421,28 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Snooze"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors hidden sm:flex"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors hidden sm:flex"
             >
               <Clock className="h-4 w-4" />
             </a>
 
-            {/* Quick Add to Google Tasks action in Toolbar */}
+            {/* Quick Add to Tasks action */}
             <button
               onClick={handleCreateTask}
               disabled={addingTask || taskAdded}
               title={taskAdded ? 'Added to Google Tasks' : 'Add to Google Tasks'}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 taskAdded
-                  ? 'bg-emerald-950/80 border border-emerald-600/50 text-emerald-300'
-                  : 'hover:bg-[#2A2A2A] text-gray-200 hover:text-white border border-transparent hover:border-[#383838]'
+                  ? 'bg-[#E6F4EA] border border-[#CEEAD6] text-[#137333]'
+                  : 'hover:bg-[#E8EAED] text-[#3C4043] border border-[#DADCE0]'
               }`}
             >
               {addingTask ? (
                 <LoadingSpinner size="sm" />
               ) : taskAdded ? (
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <Check className="h-3.5 w-3.5 text-[#137333]" />
               ) : (
-                <CheckSquare className="h-3.5 w-3.5 text-[#f7d344]" />
+                <CheckSquare className="h-3.5 w-3.5 text-[#1a73e8]" />
               )}
               <span className="hidden md:inline">{taskAdded ? 'Added to Tasks' : 'Add to Tasks'}</span>
             </button>
@@ -376,7 +452,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Move to folder"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors hidden md:flex"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors hidden md:flex"
             >
               <FolderInput className="h-4 w-4" />
             </a>
@@ -386,7 +462,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Labels"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors hidden md:flex"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors hidden md:flex"
             >
               <Tag className="h-4 w-4" />
             </a>
@@ -394,20 +470,10 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
 
           {/* Right Toolbar Icons */}
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Theme Canvas Switcher (Light Gmail Canvas vs Dark Canvas) */}
             <button
-              onClick={() => setIsDarkCanvas(!isDarkCanvas)}
-              title={isDarkCanvas ? 'Switch to authentic Gmail light template' : 'Switch to dark canvas'}
-              className="flex items-center gap-1 rounded-lg border border-[#333] bg-[#222] px-2 py-1 text-xs text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
-            >
-              {isDarkCanvas ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-blue-400" />}
-              <span className="text-[11px] hidden sm:inline">{isDarkCanvas ? 'Light View' : 'Gmail Canvas'}</span>
-            </button>
-
-            <button
-              onClick={handlePrint}
+              onClick={() => window.print()}
               title="Print email"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors hidden sm:flex"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors hidden sm:flex"
             >
               <Printer className="h-4 w-4" />
             </button>
@@ -417,112 +483,122 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               target="_blank"
               rel="noopener noreferrer"
               title="Open full thread in Gmail"
-              className="flex items-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-2.5 py-1 text-xs font-medium text-gray-200 hover:border-[#f7d344]/50 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 rounded-full border border-[#DADCE0] bg-white px-3 py-1 text-xs font-medium text-[#1a73e8] hover:bg-[#F8FAFD] transition-colors shadow-xs"
             >
               <span>Open in Gmail</span>
-              <ExternalLink className="h-3 w-3 text-gray-400" />
+              <ExternalLink className="h-3 w-3" />
             </a>
 
             <button
               onClick={onClose}
               title="Close window (Esc)"
               aria-label="Close email window"
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#2A2A2A] hover:text-white transition-colors ml-1"
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#E8EAED] hover:text-[#202124] transition-colors ml-1"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* 2. Email Subject Line & Category Labels */}
-        <div className="border-b border-[#222] bg-[#181818] px-5 sm:px-6 pt-5 pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
-            <h1 className="text-xl sm:text-2xl font-normal text-white leading-tight tracking-tight">
+        {/* 2. Email Subject Line Header (Identical to Image 1) */}
+        <div className="border-b border-[#ECEFF1] bg-white px-6 sm:px-8 pt-6 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <h1 className="text-xl sm:text-[22px] font-normal text-[#202124] leading-snug tracking-tight">
               {mail.subject}
             </h1>
 
             {/* Badges */}
-            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
-              <span className="inline-flex items-center rounded bg-[#282828] border border-[#383838] px-2 py-0.5 text-[11px] font-medium text-gray-300">
-                Inbox
-              </span>
-              {mail.isDeadlineSignal && <Badge variant="error">Deadline Signal</Badge>}
-              {mail.dueDate && (
-                <Badge variant="warning">
-                  Due:{' '}
-                  {new Date(mail.dueDate + 'T00:00:00').toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </Badge>
-              )}
-            </div>
+            {(() => {
+              const effectiveDueDate = mail.dueDate || extractMailDueDate(mail.subject, mail.snippet, mail.receivedAt);
+              const hasDeadline = Boolean(effectiveDueDate) || Boolean(mail.isDeadlineSignal);
+              return (
+                <div className="flex flex-wrap items-center gap-2 flex-shrink-0 pt-0.5">
+                  <span className="inline-flex items-center rounded-md bg-[#1E1E1E] text-gray-200 text-xs font-medium px-2.5 py-1 border border-[#333333]">
+                    Inbox
+                  </span>
+                  {hasDeadline && (
+                    <Badge variant="error" className="px-2.5 py-1 text-xs font-semibold shadow-xs">
+                      Deadline Signal
+                    </Badge>
+                  )}
+                  {effectiveDueDate && (
+                    <Badge variant="warning" className="px-2.5 py-1 text-xs font-semibold shadow-xs tabular-nums">
+                      Due:{' '}
+                      {new Date(effectiveDueDate + 'T00:00:00').toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Badge>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
-        {/* 3. Sender Details & Recipient Row (Exact Gmail Layout) */}
-        <div className="border-b border-[#222] bg-[#161616] px-5 sm:px-6 py-3.5">
+        {/* 3. Sender Details & Recipient Row (Identical to Image 1) */}
+        <div className="border-b border-[#F1F3F4] bg-white px-6 sm:px-8 py-3.5">
           <div className="flex items-start justify-between gap-3">
             {/* Sender Avatar & Identity */}
-            <div className="flex items-start gap-3 min-w-0">
-              {/* Colorful Google Workspace Circle Avatar */}
+            <div className="flex items-start gap-3.5 min-w-0">
+              {/* Google Workspace Colored Circle Avatar */}
               <div
-                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-white font-semibold text-sm shadow-sm"
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-white font-medium text-sm shadow-xs"
                 style={{ backgroundColor: avatarBg }}
               >
                 {getInitials(senderName)}
               </div>
 
-              {/* Sender Name, Address & "to me" popover trigger */}
+              {/* Sender Name, Address & "to me" dropdown */}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-baseline gap-1.5">
-                  <span className="font-semibold text-sm text-gray-100 truncate">
+                  <span className="font-semibold text-sm text-[#202124]">
                     {senderName}
                   </span>
                   {senderEmail && (
-                    <span className="text-xs text-gray-400 truncate">
+                    <span className="text-xs text-[#5F6368]">
                       &lt;{senderEmail}&gt;
                     </span>
                   )}
                 </div>
 
-                {/* "to me" button */}
+                {/* "to me" chevron */}
                 <div className="relative mt-0.5">
                   <button
                     onClick={() => setShowDetails(!showDetails)}
-                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors focus:outline-none"
+                    className="flex items-center gap-1 text-xs text-[#5F6368] hover:text-[#202124] transition-colors focus:outline-none"
                     aria-expanded={showDetails}
                   >
                     <span>to {data?.to ? (data.to.includes('<') ? data.to.split('<')[0].trim() : 'me') : 'me'}</span>
                     {showDetails ? (
-                      <ChevronUp className="h-3 w-3" />
+                      <ChevronUp className="h-3 w-3 text-[#5F6368]" />
                     ) : (
-                      <ChevronDown className="h-3 w-3" />
+                      <ChevronDown className="h-3 w-3 text-[#5F6368]" />
                     )}
                   </button>
 
-                  {/* Gmail Detailed Information Popover */}
+                  {/* Authentic Gmail Details Popover */}
                   {showDetails && (
-                    <div className="absolute top-6 left-0 z-30 w-80 sm:w-96 rounded-xl border border-[#333] bg-[#202020] p-4 shadow-xl text-xs space-y-2 text-gray-300">
-                      <div className="flex items-start justify-between pb-1 border-b border-[#2E2E2E]">
-                        <span className="font-semibold text-white">Email Details</span>
+                    <div className="absolute top-6 left-0 z-30 w-80 sm:w-96 rounded-xl border border-[#DADCE0] bg-white p-4 shadow-xl text-xs space-y-2 text-[#3C4043]">
+                      <div className="flex items-start justify-between pb-1.5 border-b border-[#ECEFF1]">
+                        <span className="font-semibold text-[#202124]">Email Details</span>
                         <button
                           onClick={() => setShowDetails(false)}
-                          className="text-gray-400 hover:text-white"
+                          className="text-[#5F6368] hover:text-[#202124]"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <div className="grid grid-cols-[70px_1fr] gap-1 pt-1">
-                        <span className="text-gray-400">from:</span>
-                        <span className="text-white font-medium break-all">{rawFrom}</span>
+                      <div className="grid grid-cols-[70px_1fr] gap-1.5 pt-1">
+                        <span className="text-[#5F6368]">from:</span>
+                        <span className="text-[#202124] font-medium break-all">{rawFrom}</span>
 
-                        <span className="text-gray-400">to:</span>
-                        <span className="text-gray-200 break-all">{data?.to || 'me'}</span>
+                        <span className="text-[#5F6368]">to:</span>
+                        <span className="text-[#202124] break-all">{data?.to || 'me'}</span>
 
-                        <span className="text-gray-400">date:</span>
-                        <span className="text-gray-200">
+                        <span className="text-[#5F6368]">date:</span>
+                        <span className="text-[#202124]">
                           {new Date(mail.receivedAt).toLocaleString('en-US', {
                             weekday: 'short',
                             month: 'short',
@@ -533,17 +609,17 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
                           })}
                         </span>
 
-                        <span className="text-gray-400">subject:</span>
-                        <span className="text-gray-200">{mail.subject}</span>
+                        <span className="text-[#5F6368]">subject:</span>
+                        <span className="text-[#202124]">{mail.subject}</span>
 
-                        <span className="text-gray-400">mailed-by:</span>
-                        <span className="text-gray-200">{senderDomain}</span>
+                        <span className="text-[#5F6368]">mailed-by:</span>
+                        <span className="text-[#202124]">{senderDomain}</span>
 
-                        <span className="text-gray-400">signed-by:</span>
-                        <span className="text-gray-200">{senderDomain}</span>
+                        <span className="text-[#5F6368]">signed-by:</span>
+                        <span className="text-[#202124]">{senderDomain}</span>
 
-                        <span className="text-gray-400">security:</span>
-                        <span className="text-emerald-400 flex items-center gap-1">
+                        <span className="text-[#5F6368]">security:</span>
+                        <span className="text-[#137333] font-medium flex items-center gap-1">
                           🔒 Standard encryption (TLS)
                         </span>
                       </div>
@@ -554,21 +630,21 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
             </div>
 
             {/* Right Side: Timestamp, Star, Reply, More */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 text-gray-400">
-              <span className="text-xs text-gray-400 whitespace-nowrap hidden sm:inline">
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 text-[#5F6368]">
+              <span className="text-xs text-[#5F6368] whitespace-nowrap hidden sm:inline">
                 {formatRelativeTime(mail.receivedAt)}
               </span>
 
               <button
                 onClick={() => setIsStarred(!isStarred)}
                 title={isStarred ? 'Starred' : 'Not starred'}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#252525] transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F1F3F4] transition-colors"
               >
                 <Star
                   className={`h-4 w-4 ${
                     isStarred
-                      ? 'text-[#f7d344] fill-[#f7d344]'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'text-[#F4B400] fill-[#F4B400]'
+                      : 'text-[#5F6368] hover:text-[#202124]'
                   }`}
                 />
               </button>
@@ -578,7 +654,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Reply"
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#252525] hover:text-white transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F1F3F4] hover:text-[#202124] transition-colors"
               >
                 <Reply className="h-4 w-4" />
               </a>
@@ -588,7 +664,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="More options"
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#252525] hover:text-white transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#F1F3F4] hover:text-[#202124] transition-colors"
               >
                 <MoreVertical className="h-4 w-4" />
               </a>
@@ -596,37 +672,30 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
           </div>
         </div>
 
-        {/* 4. Email Body Canvas (Embedded HTML template matching Gmail) */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-[#111111]">
+        {/* 4. Email Body Canvas (Pure White Gmail Canvas matching Image 1) */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 sm:px-8 py-6 bg-white min-h-[360px]">
           {loading ? (
-            <div className="space-y-4 py-8 max-w-2xl mx-auto">
-              <div className="flex items-center gap-3 text-xs text-gray-400">
+            <div className="space-y-4 py-8 max-w-2xl">
+              <div className="flex items-center gap-2.5 text-xs text-[#5F6368]">
                 <LoadingSpinner size="sm" />
                 <span>Loading formatted email from Gmail...</span>
               </div>
-              <div className="h-5 w-5/6 animate-pulse rounded bg-[#222]" />
-              <div className="h-5 w-full animate-pulse rounded bg-[#222]" />
-              <div className="h-5 w-3/4 animate-pulse rounded bg-[#222]" />
-              <div className="h-5 w-4/6 animate-pulse rounded bg-[#222]" />
-              <div className="h-32 w-full animate-pulse rounded-xl bg-[#1C1C1C]" />
+              <div className="h-4 w-5/6 animate-pulse rounded bg-[#F1F3F4]" />
+              <div className="h-4 w-full animate-pulse rounded bg-[#F1F3F4]" />
+              <div className="h-4 w-3/4 animate-pulse rounded bg-[#F1F3F4]" />
+              <div className="h-4 w-4/6 animate-pulse rounded bg-[#F1F3F4]" />
             </div>
           ) : error ? (
-            <div className="rounded-xl border border-red-800/40 bg-red-950/20 p-5">
-              <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
+            <div className="rounded-xl border border-red-200 bg-red-50/60 p-5">
+              <div className="flex items-center gap-2 text-red-700 text-sm font-medium">
                 <AlertCircle className="h-4 w-4" />
                 <span>Could not load full message from Gmail</span>
               </div>
-              <p className="mt-1 text-xs text-gray-400">{error}</p>
-              {mail.snippet && (
-                <div className="mt-4 border-t border-red-900/30 pt-3">
-                  <p className="text-xs font-semibold text-gray-400">Snippet preview:</p>
-                  <p className="mt-1 text-xs text-gray-300 leading-relaxed">{mail.snippet}</p>
-                </div>
-              )}
+              <p className="mt-1 text-xs text-red-600">{error}</p>
               <div className="mt-4 flex items-center gap-3">
                 <button
                   onClick={fetchMail}
-                  className="rounded-lg bg-[#252525] px-3.5 py-1.5 text-xs text-gray-200 hover:bg-[#333] transition-colors"
+                  className="rounded-lg bg-white border border-red-200 px-3.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
                 >
                   Retry
                 </button>
@@ -634,57 +703,44 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
                   href={gmailWebUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-[#f7d344] hover:underline"
+                  className="text-xs text-[#1a73e8] hover:underline"
                 >
                   Open directly in Gmail &rarr;
                 </a>
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* Embedded Email Container with Authentic Gmail Canvas */}
+            <div className="space-y-8">
+              {/* Formatted HTML Message Body with clickable links and authentic styling */}
               <div
-                className={`rounded-xl shadow-md overflow-hidden border transition-colors ${
-                  isDarkCanvas
-                    ? 'bg-[#141414] border-[#252525]'
-                    : 'bg-white border-[#E0E0E0]'
-                }`}
-              >
-                {/* Sandboxed iframe renders email embedded HTML template with clickable links */}
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={srcDocHtml}
-                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-                  onLoad={handleIframeLoad}
-                  className="w-full border-0 block"
-                  style={{ height: `${iframeHeight}px`, minHeight: '320px' }}
-                  title="Email body"
-                />
-              </div>
+                className="gmail-reading-pane select-text"
+                dangerouslySetInnerHTML={{ __html: renderedContentHtml }}
+                onClick={handleBodyClick}
+              />
 
               {/* Attachments Section (Exact Gmail attachment card style) */}
               {attachments.length > 0 && (
-                <div className="rounded-xl border border-[#2B2B2B] bg-[#181818] p-4">
-                  <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-gray-300">
-                    <Paperclip className="h-4 w-4 text-[#f7d344]" aria-hidden="true" />
+                <div className="pt-4 border-t border-[#ECEFF1]">
+                  <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-[#5F6368]">
+                    <Paperclip className="h-4 w-4 text-[#1a73e8]" aria-hidden="true" />
                     <span>Attachments ({attachments.length})</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {attachments.map((att, idx) => (
                       <div
                         key={idx}
-                        className="group flex items-center justify-between rounded-xl border border-[#2F2F2F] bg-[#202020] p-3 text-xs text-gray-200 hover:border-[#404040] hover:bg-[#252525] transition-colors shadow-sm"
+                        className="group flex items-center justify-between rounded-xl border border-[#DADCE0] bg-[#F8FAFD] p-3 text-xs text-[#202124] hover:border-[#1a73e8]/50 hover:bg-white transition-colors shadow-2xs"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="p-2 rounded-lg bg-[#2A2A2A] group-hover:bg-[#333] transition-colors">
+                          <div className="p-2 rounded-lg bg-white border border-[#E0E0E0] group-hover:border-[#1a73e8]/30 transition-colors">
                             {getAttachmentIcon(att.mimeType, att.filename)}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium truncate max-w-[160px] text-gray-100" title={att.filename}>
+                            <p className="font-medium truncate max-w-[160px] text-[#202124]" title={att.filename}>
                               {att.filename}
                             </p>
                             {att.size > 0 && (
-                              <p className="text-[11px] text-gray-400">
+                              <p className="text-[11px] text-[#5F6368]">
                                 {att.size > 1048576
                                   ? `${(att.size / 1048576).toFixed(1)} MB`
                                   : `${Math.round(att.size / 1024)} KB`}
@@ -698,7 +754,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Open attachment in Gmail"
-                          className="p-1.5 text-gray-400 hover:text-[#f7d344] transition-colors"
+                          className="p-1.5 text-[#5F6368] hover:text-[#1a73e8] transition-colors"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
@@ -711,17 +767,17 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
           )}
         </div>
 
-        {/* 5. Bottom Gmail Reply & Quick Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#222] bg-[#181818] px-5 sm:px-6 py-3.5">
+        {/* 5. Bottom Gmail Reply / Forward / Tasks Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#ECEFF1] bg-[#F8FAFD] px-6 sm:px-8 py-4">
           {/* Gmail Action Pills: Reply, Reply All, Forward */}
           <div className="flex items-center gap-2">
             <a
               href={gmailWebUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full border border-[#333] bg-[#222] px-4 py-1.5 text-xs font-medium text-gray-300 hover:border-[#555] hover:text-white transition-colors"
+              className="flex items-center gap-1.5 rounded-full border border-[#DADCE0] bg-white px-5 py-2 text-xs font-medium text-[#3C4043] hover:bg-[#F1F3F4] hover:border-[#C6C8CC] transition-colors shadow-2xs"
             >
-              <Reply className="h-3.5 w-3.5" />
+              <Reply className="h-3.5 w-3.5 text-[#5F6368]" />
               <span>Reply</span>
             </a>
 
@@ -729,9 +785,9 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               href={gmailWebUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full border border-[#333] bg-[#222] px-4 py-1.5 text-xs font-medium text-gray-300 hover:border-[#555] hover:text-white transition-colors hidden sm:flex"
+              className="flex items-center gap-1.5 rounded-full border border-[#DADCE0] bg-white px-5 py-2 text-xs font-medium text-[#3C4043] hover:bg-[#F1F3F4] hover:border-[#C6C8CC] transition-colors hidden sm:flex shadow-2xs"
             >
-              <ReplyAll className="h-3.5 w-3.5" />
+              <ReplyAll className="h-3.5 w-3.5 text-[#5F6368]" />
               <span>Reply all</span>
             </a>
 
@@ -739,24 +795,24 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               href={gmailWebUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full border border-[#333] bg-[#222] px-4 py-1.5 text-xs font-medium text-gray-300 hover:border-[#555] hover:text-white transition-colors hidden sm:flex"
+              className="flex items-center gap-1.5 rounded-full border border-[#DADCE0] bg-white px-5 py-2 text-xs font-medium text-[#3C4043] hover:bg-[#F1F3F4] hover:border-[#C6C8CC] transition-colors hidden sm:flex shadow-2xs"
             >
-              <Forward className="h-3.5 w-3.5" />
+              <Forward className="h-3.5 w-3.5 text-[#5F6368]" />
               <span>Forward</span>
             </a>
           </div>
 
           {/* Add to Google Tasks Integration */}
           <div className="flex items-center gap-3">
-            {taskError && <span className="text-xs text-red-400">{taskError}</span>}
+            {taskError && <span className="text-xs text-red-500">{taskError}</span>}
 
             <button
               onClick={handleCreateTask}
               disabled={addingTask || taskAdded}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] ${
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a73e8] ${
                 taskAdded
-                  ? 'bg-emerald-950/70 border border-emerald-600/50 text-emerald-300 shadow-sm'
-                  : 'bg-[#f7d344] text-black hover:bg-yellow-400 shadow-sm active:scale-95'
+                  ? 'bg-[#E6F4EA] border border-[#CEEAD6] text-[#137333]'
+                  : 'bg-[#1a73e8] text-white hover:bg-[#1557bf] active:scale-95'
               }`}
             >
               {addingTask ? (
@@ -766,7 +822,7 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
                 </>
               ) : taskAdded ? (
                 <>
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  <Check className="h-3.5 w-3.5 text-[#137333]" />
                   <span>Added to Google Tasks</span>
                 </>
               ) : (
