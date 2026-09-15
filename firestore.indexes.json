@@ -1,0 +1,38 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "personalTasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "completed", "order": "ASCENDING" },
+        { "fieldPath": "importance", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "syncJobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "startedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDeadline", "order": "ASCENDING" },
+        { "fieldPath": "startIso", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mailSignals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDeadlineSignal", "order": "DESCENDING" },
+        { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: caller must be signed in with a @mastersunion.org email
+    function isMuUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@mastersunion\\.org$');
+    }
+
+    // Helper: caller is the owner of this uid subtree
+    function isOwner(uid) {
+      return isMuUser() && request.auth.uid == uid;
+    }
+
+    // Helper: valid personal task fields
+    function validTask() {
+      let d = request.resource.data;
+      return d.title is string
+        && d.title.size() >= 1
+        && d.title.size() <= 120
+        && d.importance in ['important', 'must_do']
+        && d.completed is bool;
+    }
+
+    // ── User root document ────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      // Profile updates are allowed from the client (display name, focus, etc.)
+      allow write: if isOwner(uid);
+
+      // ── Personal tasks — client CRUD ─────────────────────────────────────
+      match /personalTasks/{taskId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && validTask();
+        allow update: if isOwner(uid);
+        allow delete: if isOwner(uid);
+      }
+
+      // ── Weekly focus — client read/write ─────────────────────────────────
+      match /focus/current {
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid)
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 500;
+      }
+
+      // ── Dashboard snapshot — written only by Cloud Functions (Admin SDK) ──
+      match /dashboard/current {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // ── Sync jobs — written only by Cloud Functions ───────────────────────
+      match /syncJobs/{jobId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // ── Imported sources — de-dup ledger, Functions-owned ─────────────────
+      match /importedSources/{sourceKey} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // ── Normalized calendar events — Functions-owned ──────────────────────
+      match /calendarEvents/{eventId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // ── Normalized mail signals — Functions-owned ─────────────────────────
+      match /mailSignals/{msgId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // ── Normalized Google Tasks — Functions-owned ─────────────────────────
+      match /googleTasks/{taskId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+
+    // Deny all other paths explicitly
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,45 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+functions-debug.log
+
+# Firebase Functions
+functions/node_modules/
+functions/lib/
+functions/.env
+
+# Node
+node_modules/
+.npm/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+frontend/.env.local
+frontend/.env.*.local
+
+# Secrets — NEVER commit these
+client_secret.json
+service-account.json
+*-service-account.json
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/

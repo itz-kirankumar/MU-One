@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mu-yellow: #f7d344;
+  --color-mu-dark: #0A0A0A;
+  --color-mu-card: #161616;
+  --color-mu-card-alt: #1A1A1A;
+  --color-mu-border: #222;
+  --color-mu-border-light: #2A2A2A;
+  --font-inter: "Inter", sans-serif;
+}
+
+body {
+  background-color: var(--color-mu-dark);
+  color: white;
+  font-family: var(--font-inter, "Inter", sans-serif);
+}
+
+/* Focus visible utility */
+*:focus-visible {
+  outline: 2px solid #f7d344;
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2A2A2A;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}
