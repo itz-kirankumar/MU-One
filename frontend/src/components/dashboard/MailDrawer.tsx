@@ -27,17 +27,24 @@ import {
   ChevronUp,
   AlertOctagon,
   ArrowLeft,
+  CheckCircle2,
 } from 'lucide-react';
 import { getFullMailMessage, createGoogleTask } from '@/lib/functions';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Badge } from '@/components/ui/Badge';
-import { extractMailDueDate } from '@/components/dashboard/ImportantMail';
+import {
+  extractMailDueDate,
+  formatMailDueDate,
+  getMailDeadlineStatus,
+  toLocalDateIso,
+} from '@/lib/mailUtils';
 import type { MailSignal } from '@/types';
 import type { GetFullMailResult, MailAttachmentInfo } from '@/lib/functions';
 
 interface MailDrawerProps {
   mail: MailSignal;
   onClose: () => void;
+  onComplete?: () => void;
 }
 
 /**
@@ -208,7 +215,7 @@ function formatMailContent(html?: string, text?: string, snippet?: string): stri
     .join('');
 }
 
-export function MailDrawer({ mail, onClose }: MailDrawerProps) {
+export function MailDrawer({ mail, onClose, onComplete }: MailDrawerProps) {
   const [data, setData] = useState<GetFullMailResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -447,6 +454,19 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
               <span className="hidden md:inline">{taskAdded ? 'Added to Tasks' : 'Add to Tasks'}</span>
             </button>
 
+            {onComplete && (
+              <button
+                onClick={() => {
+                  onComplete();
+                  onClose();
+                }}
+                title="Mark email deadline as done (removes from active list)"
+                className="flex items-center gap-1.5 rounded-full border border-[#DADCE0] bg-white px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 transition-colors shadow-xs"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Mark as Done</span>
+              </button>
+            )}
             <a
               href={gmailWebUrl}
               target="_blank"
@@ -509,34 +529,50 @@ export function MailDrawer({ mail, onClose }: MailDrawerProps) {
 
             {/* Badges */}
             {(() => {
-              const effectiveDueDate = mail.dueDate || extractMailDueDate(mail.subject, mail.snippet, mail.receivedAt);
+              const todayStr = toLocalDateIso();
+              const effectiveDueDate =
+                data?.extractedDueDate ||
+                mail.dueDate ||
+                extractMailDueDate(mail.subject, data?.bodyText || data?.body || mail.snippet, mail.receivedAt);
+              const deadlineStatus = getMailDeadlineStatus(effectiveDueDate, todayStr);
+              const isPassed = deadlineStatus === 'passed';
+              const isToday = deadlineStatus === 'today';
               const hasDeadline = Boolean(effectiveDueDate) || Boolean(mail.isDeadlineSignal);
+
               return (
                 <div className="flex flex-wrap items-center gap-2 flex-shrink-0 pt-0.5">
                   <span className="inline-flex items-center rounded-md bg-[#1E1E1E] text-gray-200 text-xs font-medium px-2.5 py-1 border border-[#333333]">
                     Inbox
                   </span>
-                  {hasDeadline && (
+                  {hasDeadline && !effectiveDueDate && (
                     <Badge variant="error" className="px-2.5 py-1 text-xs font-semibold shadow-xs">
                       Deadline Signal
                     </Badge>
                   )}
                   {effectiveDueDate && (
-                    <Badge variant="warning" className="px-2.5 py-1 text-xs font-semibold shadow-xs tabular-nums">
-                      Due:{' '}
-                      {new Date(effectiveDueDate + 'T00:00:00').toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </Badge>
+                    <>
+                      {isPassed ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[#2A0E10] text-[#F87171] text-xs font-bold px-2.5 py-1 border border-[#EF4444]/40 shadow-xs tabular-nums">
+                          <AlertCircle className="h-3.5 w-3.5 text-[#EF4444]" />
+                          Passed • Due {formatMailDueDate(effectiveDueDate)}
+                        </span>
+                      ) : isToday ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[#2A2000] text-[#FBBF24] text-xs font-bold px-2.5 py-1 border border-[#F59E0B]/50 shadow-xs animate-pulse tabular-nums">
+                          <Clock className="h-3.5 w-3.5 text-[#FBBF24]" />
+                          Due Today
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[#1C180E] text-amber-300 text-xs font-semibold px-2.5 py-1 border border-amber-500/30 shadow-xs tabular-nums">
+                          Due {formatMailDueDate(effectiveDueDate)}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               );
             })()}
           </div>
         </div>
-
         {/* 3. Sender Details & Recipient Row (Identical to Image 1) */}
         <div className="border-b border-[#F1F3F4] bg-white px-6 sm:px-8 py-3.5">
           <div className="flex items-start justify-between gap-3">

@@ -5,10 +5,14 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useCallback,
+  useRef,
+  useMemo,
   type ReactNode,
 } from 'react';
-import { subscribeToDashboard, subscribeToPersonalTasks } from '@/lib/firestore';
+import { subscribeToDashboard, subscribeToPersonalTasks, updateCompletedMailIds } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { syncDashboard } from '@/lib/functions';
 import type { DashboardData, PersonalTask, SyncStatus, SourceHealth, UserProfile } from '@/types';
 
 function toIsoString(val: unknown): string | undefined {
@@ -160,6 +164,16 @@ interface DashboardContextValue {
   error: string | null;
   /** True once a dashboard snapshot has been written by a sync at least once. */
   hasSynced: boolean;
+  /** True when a background auto-sync is currently running. */
+  isAutoSyncing: boolean;
+  /** Manually or silently trigger a sync. */
+  triggerSync: (options?: { silent?: boolean; force?: boolean }) => Promise<void>;
+  /** IDs of emails marked as completed. */
+  completedMailIds: string[];
+  /** Mark an email as completed and remove from active list. */
+  markMailCompleted: (messageId: string) => Promise<void>;
+  /** Restore / unmark a completed email. */
+  unmarkMailCompleted: (messageId: string) => Promise<void>;
 }
 
 export const DashboardContext = createContext<DashboardContextValue>({
@@ -169,6 +183,11 @@ export const DashboardContext = createContext<DashboardContextValue>({
   loading: true,
   error: null,
   hasSynced: false,
+  isAutoSyncing: false,
+  triggerSync: async () => {},
+  completedMailIds: [],
+  markMailCompleted: async () => {},
+  unmarkMailCompleted: async () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -227,11 +246,200 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return () => unsubTasks();
   }, [user]);
 
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const lastSyncAttemptRef = useRef<number>(0);
+  const isSyncingRef = useRef<boolean>(false);
+  const initialSyncDoneRef = useRef<boolean>(false);
+
+  const triggerSync = useCallback(
+    async (options?: { silent?: boolean; force?: boolean }) => {
+      const silent = options?.silent ?? false;
+      const force = options?.force ?? false;
+      const now = Date.now();
+      const minInterval = force ? 15_000 : 45_000;
+
+      // Debounce & rate-limit check
+      if (now - lastSyncAttemptRef.current < minInterval) {
+        if (!silent) {
+          const waitSecs = Math.ceil((minInterval - (now - lastSyncAttemptRef.current)) / 1000);
+          throw new Error(`Synced recently. Please wait ${waitSecs}s.`);
+        }
+        return;
+      }
+
+      if (isSyncingRef.current) return;
+
+      isSyncingRef.current = true;
+      setIsAutoSyncing(true);
+      lastSyncAttemptRef.current = now;
+
+      try {
+        await syncDashboard();
+      } catch (err: unknown) {
+        if (!silent) {
+          throw err;
+        } else {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.debug('[auto-sync] Background sync deferred:', msg);
+        }
+      } finally {
+        isSyncingRef.current = false;
+        setIsAutoSyncing(false);
+      }
+    },
+    []
+  );
+
   const syncStatus = deriveSyncStatus(dashboardData, profile);
+
+  // 1. Auto-sync on window focus / tab visibility change (e.g. user added event or received email)
+  useEffect(() => {
+    if (!user || !profile?.googleConnection?.connected) return;
+
+    function handleActivity() {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const timeSinceLast = Date.now() - lastSyncAttemptRef.current;
+        if (timeSinceLast >= 45_000) {
+          triggerSync({ silent: true }).catch(() => {});
+        }
+      }
+    }
+
+    window.addEventListener('focus', handleActivity);
+    document.addEventListener('visibilitychange', handleActivity);
+
+    return () => {
+      window.removeEventListener('focus', handleActivity);
+      document.removeEventListener('visibilitychange', handleActivity);
+    };
+  }, [user, profile?.googleConnection?.connected, triggerSync]);
+
+  // 2. Periodic background auto-sync every 2.5 minutes while the dashboard is open
+  useEffect(() => {
+    if (!user || !profile?.googleConnection?.connected) return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const timeSinceLast = Date.now() - lastSyncAttemptRef.current;
+        if (timeSinceLast >= 60_000) {
+          triggerSync({ silent: true }).catch(() => {});
+        }
+      }
+    }, 150_000);
+
+    return () => clearInterval(interval);
+  }, [user, profile?.googleConnection?.connected, triggerSync]);
+
+  // 3. Initial mount check: auto-sync if data is missing or older than 3 minutes
+  useEffect(() => {
+    if (!user || !profile?.googleConnection?.connected) return;
+    if (initialSyncDoneRef.current) return;
+    initialSyncDoneRef.current = true;
+
+    const timer = setTimeout(() => {
+      const lastSync = syncStatus?.lastSyncedAt
+        ? new Date(syncStatus.lastSyncedAt).getTime()
+        : 0;
+      const isStale = isNaN(lastSync) || Date.now() - lastSync > 3 * 60 * 1000;
+      if (isStale) {
+        triggerSync({ silent: true }).catch(() => {});
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [user, profile?.googleConnection?.connected, syncStatus?.lastSyncedAt, triggerSync]);
+
+  // Completed mail tracking (local storage + Firestore profile sync)
+  const [completedMailIds, setCompletedMailIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('mu_completed_mail_ids');
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    const remoteIds = (profile as Record<string, unknown> | null)?.completedMailIds;
+    if (Array.isArray(remoteIds)) {
+      setCompletedMailIds((prev) => {
+        const merged = Array.from(new Set([...prev, ...(remoteIds as string[])]));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('mu_completed_mail_ids', JSON.stringify(merged));
+          } catch {}
+        }
+        return merged;
+      });
+    }
+  }, [profile]);
+
+  const markMailCompleted = useCallback(
+    async (messageId: string) => {
+      const next = Array.from(new Set([...completedMailIds, messageId]));
+      setCompletedMailIds(next);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('mu_completed_mail_ids', JSON.stringify(next));
+        } catch {}
+      }
+      if (user) {
+        await updateCompletedMailIds(user.uid, next).catch(() => {});
+      }
+    },
+    [user, completedMailIds]
+  );
+
+  const unmarkMailCompleted = useCallback(
+    async (messageId: string) => {
+      const next = completedMailIds.filter((id) => id !== messageId);
+      setCompletedMailIds(next);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('mu_completed_mail_ids', JSON.stringify(next));
+        } catch {}
+      }
+      if (user) {
+        await updateCompletedMailIds(user.uid, next).catch(() => {});
+      }
+    },
+    [user, completedMailIds]
+  );
+
+  // Filter out completed emails from active dashboard view
+  const activeDashboardData = useMemo(() => {
+    if (!dashboardData) return null;
+    const completedSet = new Set(completedMailIds);
+    const filterMail = (list?: any[]) =>
+      (list ?? []).filter(
+        (m) =>
+          !completedSet.has(m?.id) &&
+          !completedSet.has(m?.messageId)
+      );
+
+    return {
+      ...dashboardData,
+      mailSignals: filterMail(dashboardData.mailSignals),
+      importantMail: filterMail((dashboardData as any).importantMail),
+    };
+  }, [dashboardData, completedMailIds]);
 
   return (
     <DashboardContext.Provider
-      value={{ dashboardData, personalTasks, syncStatus, loading, error, hasSynced }}
+      value={{
+        dashboardData: activeDashboardData,
+        personalTasks,
+        syncStatus,
+        loading,
+        error,
+        hasSynced,
+        isAutoSyncing,
+        triggerSync,
+        completedMailIds,
+        markMailCompleted,
+        unmarkMailCompleted,
+      }}
     >
       {children}
     </DashboardContext.Provider>

@@ -7,14 +7,14 @@ import { getDb } from "../utils/getDb";
 
 const MAX_USERS_PER_RUN = 50;
 const SYNC_DAYS = 30;
-const MIN_SYNC_INTERVAL_MINUTES = 14;
+const MIN_SYNC_INTERVAL_MINUTES = 4;
 
 /**
- * Scheduled Cloud Function: runs every 15 minutes.
+ * Scheduled Cloud Function: runs every 5 minutes.
  *
  * Queries Firestore for users where:
  *  - googleConnection.connected == true
- *  - googleConnection.lastSyncAt < now - 14 minutes (avoid double-syncing)
+ *  - googleConnection.lastSyncAt < now - 4 minutes (avoid double-syncing)
  *
  * For each user (up to 50 per invocation):
  *  - Runs calendar, mail, and task syncs in parallel.
@@ -24,7 +24,7 @@ const MIN_SYNC_INTERVAL_MINUTES = 14;
  */
 export const scheduledSyncAllUsers = onSchedule(
   {
-    schedule: "every 15 minutes",
+    schedule: "every 5 minutes",
     timeoutSeconds: 540, // 9 minutes max
     memory: "512MiB",
   },
@@ -118,6 +118,10 @@ export const scheduledSyncAllUsers = onSchedule(
             ? "partial_error"
             : "warning";
 
+          const nowIso = now.toDate().toISOString();
+          const nextSyncDate = new Date(Date.now() + 5 * 60 * 1000);
+          const nextSyncIso = nextSyncDate.toISOString();
+
           await db
             .collection("users")
             .doc(uid)
@@ -128,11 +132,21 @@ export const scheduledSyncAllUsers = onSchedule(
                 sourceHealth,
                 sync: {
                   status: overallStatus,
-                  lastCompletedAt: admin.firestore.Timestamp.now(),
-                  nextScheduledSyncAt: admin.firestore.Timestamp.fromDate(
-                    new Date(Date.now() + 15 * 60 * 1000)
-                  ),
+                  lastCompletedAt: now,
+                  nextScheduledSyncAt: admin.firestore.Timestamp.fromDate(nextSyncDate),
                 },
+                syncStatus: {
+                  syncing: false,
+                  lastSyncedAt: nowIso,
+                  nextSyncAt: nextSyncIso,
+                  sourceHealth: {
+                    calendar: { status: sourceHealth["calendar"], lastSyncedAt: nowIso },
+                    gmail: { status: sourceHealth["mail"], lastSyncedAt: nowIso },
+                    tasks: { status: sourceHealth["tasks"], lastSyncedAt: nowIso },
+                  },
+                },
+                syncedAt: nowIso,
+                updatedAt: now,
               },
               { merge: true }
             );

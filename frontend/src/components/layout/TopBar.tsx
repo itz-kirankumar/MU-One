@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { RefreshCw, CalendarPlus, Mail, Menu } from 'lucide-react';
+import { RefreshCw, CalendarPlus, Mail, Menu, Mic } from 'lucide-react';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
-import { syncDashboard } from '@/lib/functions';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
-const THREE_MINUTES_MS = 3 * 60 * 1000;
+const MANUAL_COOLDOWN_MS = 15 * 1000; // 15s between manual force syncs
 
 function formatLastSynced(iso: string | undefined): string {
   if (!iso) return 'Not synced yet';
@@ -32,10 +31,11 @@ interface TopBarProps {
   onNewEvent: () => void;
   onComposeMail: () => void;
   onMobileMenuOpen: () => void;
+  onOpenVoiceCopilot?: () => void;
 }
 
-export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen }: TopBarProps) {
-  const { syncing, lastSyncedAt, sourceHealth } = useSyncStatus();
+export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoiceCopilot }: TopBarProps) {
+  const { syncing, isAutoSyncing, lastSyncedAt, sourceHealth, triggerSync } = useSyncStatus();
   const [refreshing, setRefreshing] = useState(false);
   const [cooldownMsg, setCooldownMsg] = useState('');
   const lastRefreshRef = useRef<number>(0);
@@ -61,27 +61,27 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen }: TopBarPr
   const handleRefresh = useCallback(async () => {
     const currentTime = Date.now();
     const timeSinceLast = currentTime - lastRefreshRef.current;
-    if (timeSinceLast < THREE_MINUTES_MS) {
-      const remainingSecs = Math.ceil((THREE_MINUTES_MS - timeSinceLast) / 1000);
-      setCooldownMsg(`Rate limit: wait ${remainingSecs}s`);
-      setTimeout(() => setCooldownMsg(''), 3000);
+    if (timeSinceLast < MANUAL_COOLDOWN_MS) {
+      const remainingSecs = Math.ceil((MANUAL_COOLDOWN_MS - timeSinceLast) / 1000);
+      setCooldownMsg(`Wait ${remainingSecs}s`);
+      setTimeout(() => setCooldownMsg(''), 2500);
       return;
     }
     lastRefreshRef.current = currentTime;
     setRefreshing(true);
     setCooldownMsg('');
     try {
-      await syncDashboard();
+      await triggerSync({ force: true, silent: false });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sync failed';
-      setCooldownMsg(msg.includes('rate-limited') ? 'Synced recently' : msg);
-      setTimeout(() => setCooldownMsg(''), 4000);
+      setCooldownMsg(msg.includes('rate-limited') || msg.includes('recently') ? 'Synced recently' : msg);
+      setTimeout(() => setCooldownMsg(''), 3000);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [triggerSync]);
 
-  const isSyncActive = syncing || refreshing;
+  const isSyncActive = syncing || isAutoSyncing || refreshing;
 
   return (
     <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-[#1A1A1A] bg-[#0A0A0A] px-4 gap-3">
@@ -106,7 +106,7 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen }: TopBarPr
           {isSyncActive ? (
             <div className="flex items-center gap-1.5 text-[#f7d344]">
               <LoadingSpinner size="sm" />
-              <span className="font-medium">Syncing...</span>
+              <span className="font-medium">{isAutoSyncing ? 'Auto-syncing...' : 'Syncing...'}</span>
             </div>
           ) : cooldownMsg ? (
             <span className="text-amber-400 font-medium text-[11px] animate-in fade-in duration-150">
@@ -140,10 +140,10 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen }: TopBarPr
             disabled={isSyncActive}
             title={
               lastSyncedAt
-                ? `Last synced at ${new Date(lastSyncedAt).toLocaleTimeString('en-IN', {
+                ? `Auto-sync is enabled. Last synced at ${new Date(lastSyncedAt).toLocaleTimeString('en-IN', {
                     hour: '2-digit',
                     minute: '2-digit',
-                  })}. Click to sync now.`
+                  })}. Click to force sync now.`
                 : 'Click to sync with Google'
             }
             aria-label="Sync with Google"
@@ -157,6 +157,17 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen }: TopBarPr
         </div>
 
         {/* Action Buttons */}
+        {onOpenVoiceCopilot && (
+          <button
+            onClick={onOpenVoiceCopilot}
+            aria-label="Open AI Voice Copilot"
+            className="flex items-center gap-1.5 rounded-md border border-purple-500/40 bg-purple-950/30 px-3 py-1.5 text-xs font-semibold text-purple-300 hover:bg-purple-900/40 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 transition-colors shadow-xs"
+          >
+            <Mic className="h-3.5 w-3.5 text-purple-400" aria-hidden="true" />
+            <span className="hidden sm:inline">Voice Copilot</span>
+          </button>
+        )}
+
         <button
           onClick={onNewEvent}
           aria-label="New calendar event"

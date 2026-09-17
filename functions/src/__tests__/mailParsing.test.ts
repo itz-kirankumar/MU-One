@@ -112,6 +112,71 @@ describe("inferDueDate", () => {
     const result = inferDueDate("Registration closes on 16 Oct", FIXED_DATE);
     expect(result).toBe("2024-10-16");
   });
+
+  it("extracts 'Deadline to fill the FORM: 13 September, 11:59 PM' with expanded URL", () => {
+    const text =
+      "Deadline to fill the FORM <https://docs.google.com/forms/d/e/1FAIpQLSc_123/viewform>: 13 September, 11:59 PM";
+    const result = inferDueDate(text, new Date("2026-09-11T12:00:00Z"));
+    expect(result).toBe("2026-09-13");
+  });
+
+  it("extracts 'Please fill out this google form by 10 Sep if interested' with URL", () => {
+    const text =
+      "Please fill out this google form <https://forms.gle/xyz123> by 10 Sep if interested";
+    const result = inferDueDate(text, new Date("2026-09-08T12:00:00Z"));
+    expect(result).toBe("2026-09-10");
+  });
+
+  it("extracts 'The last registration date for the competition (independent application) is 20 Sep 2026.'", () => {
+    const text =
+      "2. The last registration date for the competition (independent application) is 20 Sep 2026.";
+    const result = inferDueDate(text, new Date("2026-09-08T12:00:00Z"));
+    expect(result).toBe("2026-09-20");
+  });
+
+  it("picks earliest upcoming deadline when email has both 10 Sep and 20 Sep", () => {
+    const text = `
+      Please fill out this google form <https://forms.gle/xyz123> by 10 Sep if interested
+      2. The last registration date for the competition (independent application) is 20 Sep 2026.
+    `;
+    // If today is 15 Sep 2026 (10 Sep passed), it picks 20 Sep 2026
+    const resultToday15 = inferDueDate(
+      text,
+      new Date("2026-09-08T12:00:00Z"),
+      new Date("2026-09-15T12:00:00Z")
+    );
+    expect(resultToday15).toBe("2026-09-20");
+
+    // If today is 8 Sep 2026 (both upcoming), it picks 10 Sep (the earliest upcoming)
+    const resultToday8 = inferDueDate(
+      text,
+      new Date("2026-09-08T12:00:00Z"),
+      new Date("2026-09-08T12:00:00Z")
+    );
+    expect(resultToday8).toBe("2026-09-10");
+  });
+
+  it("recognizes DD Mon and DD/MM deadline formats correctly", () => {
+    const base = new Date("2026-09-08T12:00:00Z");
+
+    expect(inferDueDate("Deadline: 10 Sep", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline 10 Sep", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline: 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline 10/9", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline 10-09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline 10-Sep", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("deadline 10/Sep", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("by 10 Sep if interested", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("by 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("registration by 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("submit by 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("last date 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("fill out the form by 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("due 10/09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("due 10-09", base, base)).toBe("2026-09-10");
+    expect(inferDueDate("Team size: 1-4 members", base, base)).toBeNull();
+  });
 });
 
 describe("extractPlainText", () => {

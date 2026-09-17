@@ -128,6 +128,14 @@ export interface DashboardData {
   uid: string;
   syncStatus?: SyncStatus;
   events?: NormalizedEvent[];
+  /** Full busy occurrences, independent of the shortened agenda displayed in the dashboard. */
+  calendarAvailability?: {
+    events: NormalizedEvent[];
+    from: string;
+    to: string;
+    complete: boolean;
+    syncedAt: string;
+  };
   deadlines?: NormalizedEvent[];
   mailSignals?: MailSignal[];
   googleTasks?: GoogleTask[];

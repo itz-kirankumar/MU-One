@@ -4,6 +4,8 @@ import { requireMuDomain } from "../utils/domainCheck";
 import { getAccessToken } from "../auth/tokenStore";
 import { withBackoff } from "../utils/backoff";
 import { sanitizeEmailHtml, formatPlainTextToHtml } from "../utils/sanitizeEmailHtml";
+import { inferDueDate } from "../utils/mailParsing";
+import { getDb } from "../utils/getDb";
 
 interface MailAttachmentInfo {
   filename: string;
@@ -146,6 +148,22 @@ export const getFullMailMessage = onCall(async (request) => {
     ? sanitizeEmailHtml(html)
     : formatPlainTextToHtml(text || snippet);
 
+  const receivedAtDate = date ? new Date(date) : new Date();
+  const validReceivedAt = isNaN(receivedAtDate.getTime()) ? new Date() : receivedAtDate;
+  const fullContent = subject + "\n" + (text || html || snippet || "");
+  const extractedDueDate = inferDueDate(fullContent, validReceivedAt);
+
+  // If a due date is discovered from full mail body, save it to Firestore mailSignals
+  if (extractedDueDate) {
+    const db = getDb();
+    db.collection("users")
+      .doc(uid)
+      .collection("mailSignals")
+      .doc(messageId)
+      .set({ dueDate: extractedDueDate }, { merge: true })
+      .catch(() => {});
+  }
+
   return {
     messageId,
     from,
@@ -157,5 +175,6 @@ export const getFullMailMessage = onCall(async (request) => {
     formattedHtml,
     attachments,
     snippet,
+    extractedDueDate: extractedDueDate ?? undefined,
   };
 });

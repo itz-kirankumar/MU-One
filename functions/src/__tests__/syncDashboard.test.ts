@@ -147,8 +147,8 @@ describe("syncDashboard", () => {
     }
   });
 
-  it("throws rate-limit error on second call within 3 minutes", async () => {
-    const recentSync = new Date(Date.now() - 60 * 1000); // 1 minute ago
+  it("throws rate-limit error on second call within cooldown period", async () => {
+    const recentSync = new Date(Date.now() - 30 * 1000); // 30 seconds ago (within 60s cooldown)
     const dashData = {
       sync: {
         lastCompletedAt: {

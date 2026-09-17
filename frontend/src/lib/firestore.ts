@@ -174,3 +174,11 @@ export async function updateFocus(uid: string, text: string): Promise<void> {
     updatedAt: new Date().toISOString(),
   });
 }
+
+/**
+ * Save the user's completed mail IDs to /users/{uid}.
+ */
+export async function updateCompletedMailIds(uid: string, completedMailIds: string[]): Promise<void> {
+  const ref = doc(db, 'users', uid);
+  await setDoc(ref, { completedMailIds, updatedAt: new Date().toISOString() }, { merge: true });
+}

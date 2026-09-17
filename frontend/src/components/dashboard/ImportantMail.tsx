@@ -1,12 +1,28 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import {
+  ExternalLink,
+  Circle,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Calendar,
+  ChevronDown,
+} from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MailDrawer } from '@/components/dashboard/MailDrawer';
+import {
+  extractMailDueDate,
+  formatMailDueDate,
+  getMailDeadlineStatus,
+  toLocalDateIso,
+} from '@/lib/mailUtils';
 import type { MailSignal } from '@/types';
+
+export { extractMailDueDate, formatMailDueDate, getMailDeadlineStatus, toLocalDateIso };
 
 function getAvatarColor(name: string): string {
   const colors = [
@@ -48,146 +64,28 @@ function formatReceivedDate(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-const MONTHS_MAP: Record<string, number> = {
-  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
-  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
-  jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8,
-  sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
-};
-const MONTH_REGEX_PART = Object.keys(MONTHS_MAP).join('|');
-
-function toIsoDateStr(y: number, m: number, d: number): string {
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-
-export function extractMailDueDate(
-  subject?: string,
-  snippet?: string,
-  receivedAt?: string
-): string | null {
-  const text = `${subject || ''}\n${snippet || ''}`;
-  if (!text.trim()) return null;
-
-  const baseDate = receivedAt ? new Date(receivedAt) : new Date();
-  const validBase = isNaN(baseDate.getTime()) ? new Date() : baseDate;
-  const currentYear = validBase.getFullYear();
-  const lower = text.toLowerCase();
-
-  const triggerPattern =
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b/i;
-  if (!triggerPattern.test(text)) {
-    return null;
-  }
-
-  // "due today"
-  if (
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.]{0,35}\btoday\b/i.test(
-      lower
-    )
-  ) {
-    return toIsoDateStr(validBase.getFullYear(), validBase.getMonth() + 1, validBase.getDate());
-  }
-
-  // "due tomorrow"
-  if (
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.]{0,35}\btomorrow\b/i.test(
-      lower
-    )
-  ) {
-    const tom = new Date(validBase);
-    tom.setDate(tom.getDate() + 1);
-    return toIsoDateStr(tom.getFullYear(), tom.getMonth() + 1, tom.getDate());
-  }
-
-  // "due YYYY-MM-DD"
-  const isoMatch = text.match(
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^.\d]{0,35}(\d{4}-\d{2}-\d{2})\b/i
-  );
-  if (isoMatch) {
-    const d = new Date(isoMatch[2]);
-    if (!isNaN(d.getTime())) return isoMatch[2];
-  }
-
-  // "due dd/mm/yyyy" or "due dd-mm-yyyy"
-  const dmyMatch = text.match(
-    /\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\b[^\d]{0,35}(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/i
-  );
-  if (dmyMatch) {
-    const day = parseInt(dmyMatch[2], 10);
-    const month = parseInt(dmyMatch[3], 10);
-    let year = parseInt(dmyMatch[4], 10);
-    if (year < 100) year += 2000;
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return toIsoDateStr(year, month, day);
-    }
-  }
-
-  // "due 15 September [2026]" or "Deadline: 15th Sept 2026"
-  const dayMonthYearMatch = text.match(
-    new RegExp(
-      `\\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\\b[^.\\d]{0,35}(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+(${MONTH_REGEX_PART})(?:,?\\s*(\\d{4}))?\\b`,
-      'i'
-    )
-  );
-  if (dayMonthYearMatch) {
-    const day = parseInt(dayMonthYearMatch[2], 10);
-    const monthName = dayMonthYearMatch[3].toLowerCase();
-    const month = MONTHS_MAP[monthName];
-    const year = dayMonthYearMatch[4] ? parseInt(dayMonthYearMatch[4], 10) : currentYear;
-    if (month && day >= 1 && day <= 31) {
-      return toIsoDateStr(year, month, day);
-    }
-  }
-
-  // "due September 15 [, 2026]" or "Deadline: Sept 15th, 2026"
-  const monthDayYearMatch = text.match(
-    new RegExp(
-      `\\b(due|deadline|submit(?: by)?|submission(?: by)?|conclude(?:s)?(?: on)?|ends?(?: on)?|last date|closes?(?: on)?|apply by|complete by)\\b[^.\\d]{0,35}(${MONTH_REGEX_PART})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(\\d{4}))?\\b`,
-      'i'
-    )
-  );
-  if (monthDayYearMatch) {
-    const monthName = monthDayYearMatch[2].toLowerCase();
-    const month = MONTHS_MAP[monthName];
-    const day = parseInt(monthDayYearMatch[3], 10);
-    const year = monthDayYearMatch[4] ? parseInt(monthDayYearMatch[4], 10) : currentYear;
-    if (month && day >= 1 && day <= 31) {
-      return toIsoDateStr(year, month, day);
-    }
-  }
-
-  return null;
-}
-
-function formatMailDueDate(isoDate: string): string {
-  const parts = isoDate.split('-');
-  if (parts.length === 3) {
-    const year = parseInt(parts[0], 10);
-    const monthIndex = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    const d = new Date(year, monthIndex, day);
-    if (!isNaN(d.getTime())) {
-      const currentYear = new Date().getFullYear();
-      const monthStr = d.toLocaleDateString('en-GB', { month: 'short' });
-      if (year !== currentYear) {
-        return `${day} ${monthStr} ${year}`;
-      }
-      return `${day} ${monthStr}`;
-    }
-  }
-  return isoDate;
+interface MailRowProps {
+  mail: MailSignal;
+  onClick: () => void;
+  onComplete: (mail: MailSignal) => void;
+  todayStr: string;
+  isCompleted?: boolean;
 }
 
 function MailRow({
   mail,
   onClick,
-}: {
-  mail: MailSignal;
-  onClick: () => void;
-}) {
-  const senderName = mail.sender || mail.from || mail.fromEmail || 'Masters\' Union';
+  onComplete,
+  todayStr,
+  isCompleted = false,
+}: MailRowProps) {
+  const senderName = mail.sender || mail.from || mail.fromEmail || "Masters' Union";
   const avatarBg = getAvatarColor(senderName);
-  const effectiveDueDate = mail.dueDate || extractMailDueDate(mail.subject, mail.snippet, mail.receivedAt);
+  const effectiveDueDate =
+    mail.dueDate || extractMailDueDate(mail.subject, mail.snippet, mail.receivedAt);
+  const deadlineStatus = getMailDeadlineStatus(effectiveDueDate, todayStr);
+  const isPassed = deadlineStatus === 'passed';
+  const isToday = deadlineStatus === 'today';
   const hasDeadline = Boolean(effectiveDueDate) || Boolean(mail.isDeadlineSignal);
 
   return (
@@ -201,9 +99,34 @@ function MailRow({
           onClick();
         }
       }}
-      className="group cursor-pointer flex items-start gap-3 rounded-xl px-3.5 py-3 hover:bg-[#1C1C1C] transition-colors border border-transparent hover:border-[#2A2A2A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+      className={`group cursor-pointer flex items-start gap-3 rounded-xl px-3.5 py-3 hover:bg-[#1C1C1C] transition-all border ${
+        isCompleted
+          ? 'border-transparent bg-[#111] opacity-60'
+          : isPassed
+          ? 'border-red-900/30 bg-[#140C0E]/50 border-l-2 border-l-red-500 hover:border-red-800/60'
+          : isToday
+          ? 'border-amber-900/30 bg-[#161208]/50 border-l-2 border-l-[#F59E0B] hover:border-amber-800/60'
+          : 'border-transparent hover:border-[#2A2A2A]'
+      } focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]`}
       aria-label={`Open email: ${mail.subject}`}
     >
+      {/* Interactive Completion Checkbox */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onComplete(mail);
+        }}
+        title={isCompleted ? 'Mark as incomplete' : 'Mark as completed (removes from list)'}
+        aria-label={isCompleted ? `Restore ${mail.subject}` : `Complete ${mail.subject}`}
+        className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-gray-500 hover:text-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 transition-colors mt-0.5"
+      >
+        {isCompleted ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        ) : (
+          <Circle className="h-4 w-4 text-gray-500 group-hover:text-emerald-400 transition-colors" />
+        )}
+      </button>
+
       {/* Sender avatar */}
       <div
         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-sm transition-transform group-hover:scale-105"
@@ -220,28 +143,46 @@ function MailRow({
           </span>
           <div className="flex items-center gap-2 flex-shrink-0">
             {effectiveDueDate && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 tabular-nums">
-                Due {formatMailDueDate(effectiveDueDate)}
-              </span>
+              <>
+                {isPassed ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-[#2A0E10] text-[#F87171] border border-[#EF4444]/40 tabular-nums shadow-xs">
+                    <AlertCircle className="h-3 w-3 text-[#EF4444]" />
+                    Passed • Due {formatMailDueDate(effectiveDueDate)}
+                  </span>
+                ) : isToday ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-[#2A2000] text-[#FBBF24] border border-[#F59E0B]/50 tabular-nums animate-pulse">
+                    <Clock className="h-3 w-3 text-[#FBBF24]" />
+                    Due Today
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#1C180E] text-amber-300 border border-amber-500/30 tabular-nums">
+                    <Calendar className="h-3 w-3 text-amber-400" />
+                    Due {formatMailDueDate(effectiveDueDate)}
+                  </span>
+                )}
+              </>
             )}
-            <span className="text-[10px] text-gray-500">
+            <span className="text-[10px] text-gray-500 tabular-nums">
               {formatReceivedDate(mail.receivedAt)}
             </span>
           </div>
         </div>
-        <p className="mt-0.5 truncate text-sm text-gray-300 font-medium group-hover:text-[#f7d344] transition-colors">
+        <p
+          className={`mt-0.5 truncate text-sm font-medium transition-colors ${
+            isCompleted
+              ? 'line-through text-gray-500'
+              : 'text-gray-300 group-hover:text-[#f7d344]'
+          }`}
+        >
           {mail.subject}
         </p>
         <p className="mt-0.5 line-clamp-1 text-xs text-gray-500 leading-relaxed">
           {mail.snippet}
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {hasDeadline && <Badge variant="error">Deadline</Badge>}
-          {effectiveDueDate && (
-            <Badge variant="warning">
-              Due {formatMailDueDate(effectiveDueDate)}
-            </Badge>
-          )}
+          {hasDeadline && !effectiveDueDate && <Badge variant="error">Deadline</Badge>}
+          {isPassed && <Badge variant="error">Overdue</Badge>}
+          {isToday && <Badge variant="warning">Today</Badge>}
         </div>
       </div>
 
@@ -257,48 +198,89 @@ function MailRow({
 }
 
 export function ImportantMail() {
-  const { dashboardData, loading } = useDashboard();
+  const { dashboardData, loading, completedMailIds, markMailCompleted, unmarkMailCompleted } =
+    useDashboard();
   const [selectedMail, setSelectedMail] = useState<MailSignal | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  const rawMails =
+  const todayStr = toLocalDateIso();
+
+  // Raw mails from dashboard
+  const rawActiveMails =
     dashboardData?.mailSignals ??
     (dashboardData as { importantMail?: MailSignal[] })?.importantMail ??
     [];
 
-  const mails = [...rawMails].sort((a, b) => {
+  // All mails including completed ones for the toggle
+  const allMails =
+    (dashboardData as { allMailSignals?: MailSignal[] })?.allMailSignals ?? rawActiveMails;
+
+  const completedSet = new Set(completedMailIds ?? []);
+  const completedMails = allMails.filter(
+    (m) => (m?.id && completedSet.has(m.id)) || (m?.messageId && completedSet.has(m.messageId))
+  );
+
+  // Sort active mails: Due Today first -> Upcoming -> Passed (Red) -> No deadline
+  const mails = [...rawActiveMails].sort((a, b) => {
     const dueA = a.dueDate || extractMailDueDate(a.subject, a.snippet, a.receivedAt);
     const dueB = b.dueDate || extractMailDueDate(b.subject, b.snippet, b.receivedAt);
 
-    // Both have due dates: sort by due date ascending (top to bottom chronological order)
-    if (dueA && dueB) {
-      const diff = dueA.localeCompare(dueB);
+    const statusA = getMailDeadlineStatus(dueA, todayStr);
+    const statusB = getMailDeadlineStatus(dueB, todayStr);
+
+    const rank = (status: string) => {
+      if (status === 'today') return 1;
+      if (status === 'upcoming') return 2;
+      if (status === 'passed') return 3;
+      return 4;
+    };
+
+    const rankA = rank(statusA);
+    const rankB = rank(statusB);
+
+    if (rankA !== rankB) return rankA - rankB;
+
+    // Both today: sort by receivedAt descending
+    if (statusA === 'today' && statusB === 'today') {
+      return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+    }
+
+    // Both upcoming: earliest deadline first
+    if (statusA === 'upcoming' && statusB === 'upcoming') {
+      const diff = (dueA || '').localeCompare(dueB || '');
       if (diff !== 0) return diff;
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     }
 
-    // A has a due date, B does not: A comes first (top)
-    if (dueA && !dueB) return -1;
-    // B has a due date, A does not: B comes first (top)
-    if (!dueA && dueB) return 1;
+    // Both passed: closest past date first (most recently expired)
+    if (statusA === 'passed' && statusB === 'passed') {
+      const diff = (dueB || '').localeCompare(dueA || '');
+      if (diff !== 0) return diff;
+      return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+    }
 
-    // Next: emails with deadline signals (but no date) come before regular mail
+    // Both without due date: deadline signals first, then newest
     const sigA = Boolean(a.isDeadlineSignal);
     const sigB = Boolean(b.isDeadlineSignal);
     if (sigA && !sigB) return -1;
     if (!sigA && sigB) return 1;
 
-    // Regular emails: sort by receivedAt descending (newest first)
     return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
   });
 
   return (
     <>
       <section className="rounded-xl border border-[#222] bg-[#161616] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#1A1A1A]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
           <h3 className="text-sm font-semibold text-white">Important MU Mail</h3>
+          {mails.length > 0 && (
+            <span className="text-[11px] text-gray-500 tabular-nums">
+              {mails.length} active
+            </span>
+          )}
         </div>
 
-        <div className="px-2 py-2 space-y-0.5">
+        <div className="px-2 py-2 space-y-1">
           {loading ? (
             <div className="space-y-3 px-3 py-2">
               {[1, 2, 3].map((i) => (
@@ -313,21 +295,81 @@ export function ImportantMail() {
               ))}
             </div>
           ) : mails.length === 0 ? (
-            <EmptyState title="No important mail" description="MU emails will appear here after syncing" />
+            <div className="py-6">
+              <EmptyState
+                title="All caught up!"
+                description="No active pending emails with deadlines"
+              />
+            </div>
           ) : (
             mails.map((mail, idx) => (
               <MailRow
                 key={mail.id || mail.messageId || `mail-${idx}`}
                 mail={mail}
+                todayStr={todayStr}
                 onClick={() => setSelectedMail(mail)}
+                onComplete={() => {
+                  const id = mail.messageId || mail.id;
+                  if (id) markMailCompleted(id);
+                }}
               />
             ))
+          )}
+
+          {/* Collapsible Completed Section */}
+          {completedMails.length > 0 && (
+            <div className="mt-3 border-t border-[#1F1F1F] pt-2 px-2">
+              <button
+                onClick={() => setShowCompleted(!showCompleted)}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 font-medium py-1 transition-colors w-full justify-between"
+              >
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>
+                    {showCompleted
+                      ? 'Hide completed'
+                      : `Show completed (${completedMails.length})`}
+                  </span>
+                </div>
+                <ChevronDown
+                  className={`h-3 w-3 transition-transform ${
+                    showCompleted ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showCompleted && (
+                <div className="mt-2 space-y-1">
+                  {completedMails.map((mail, idx) => (
+                    <MailRow
+                      key={`comp-${mail.id || mail.messageId || idx}`}
+                      mail={mail}
+                      todayStr={todayStr}
+                      isCompleted={true}
+                      onClick={() => setSelectedMail(mail)}
+                      onComplete={() => {
+                        const id = mail.messageId || mail.id;
+                        if (id) unmarkMailCompleted(id);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </section>
 
       {selectedMail && (
-        <MailDrawer mail={selectedMail} onClose={() => setSelectedMail(null)} />
+        <MailDrawer
+          mail={selectedMail}
+          onClose={() => setSelectedMail(null)}
+          onComplete={() => {
+            const id = selectedMail.messageId || selectedMail.id;
+            if (id) markMailCompleted(id);
+            setSelectedMail(null);
+          }}
+        />
       )}
     </>
   );

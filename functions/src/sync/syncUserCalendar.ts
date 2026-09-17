@@ -40,6 +40,7 @@ export async function syncUserCalendar(
 
   const now = new Date();
   const timeMax = new Date(now.getTime() + syncDays * 24 * 60 * 60 * 1000);
+  let coverageComplete = true;
 
   // List all calendars
   let calendarList: {
@@ -53,6 +54,7 @@ export async function syncUserCalendar(
       calendar.calendarList.list({ maxResults: 250 })
     );
     const items = calListResponse.data.items ?? [];
+    if (calListResponse.data.nextPageToken) coverageComplete = false;
     calendarList = items
       .filter((item) => {
         const name = (item.summary ?? "").toLowerCase();
@@ -73,6 +75,7 @@ export async function syncUserCalendar(
   // De-duplicate by iCalUID across all calendars
   const seenICalUIDs = new Set<string>();
   const allNormalizedEvents: ReturnType<typeof normalizeEvent>[] = [];
+  const busyOccurrences: ReturnType<typeof normalizeEvent>[] = [];
 
   for (const cal of calendarList) {
     try {
@@ -88,7 +91,13 @@ export async function syncUserCalendar(
       );
 
       const events = eventsResponse.data.items ?? [];
+      if (eventsResponse.data.nextPageToken) coverageComplete = false;
       for (const event of events) {
+        // Repeated instances share iCalUID. Availability must include every busy
+        // occurrence even though the display/legacy ledger de-duplicates by UID.
+        if (event.status !== 'cancelled' && event.transparency !== 'transparent') {
+          busyOccurrences.push(normalizeEvent(event as Record<string, unknown>, cal.summary, cal.id));
+        }
         const iCalUID = event.iCalUID ?? "";
         if (!iCalUID || seenICalUIDs.has(iCalUID)) {
           continue;
@@ -142,6 +151,13 @@ export async function syncUserCalendar(
         agenda,
         events: agenda,
         deadlines,
+        calendarAvailability: {
+          events: busyOccurrences,
+          from: now.toISOString(),
+          to: timeMax.toISOString(),
+          complete: coverageComplete && warnings.length === 0,
+          syncedAt: new Date().toISOString(),
+        },
         metrics: {
           eventsCount: allNormalizedEvents.length,
         },

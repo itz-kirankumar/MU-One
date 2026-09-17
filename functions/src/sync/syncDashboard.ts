@@ -6,7 +6,8 @@ import { syncUserMail } from "./syncUserMail";
 import { syncUserGoogleTasks } from "./syncUserGoogleTasks";
 import { getDb } from "../utils/getDb";
 
-const SYNC_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutes
+const SYNC_COOLDOWN_MS = 60 * 1000; // 60 seconds
+const FORCE_COOLDOWN_MS = 15 * 1000; // 15 seconds for manual force
 const SYNC_DAYS = 30;
 
 type SourceHealth = "ok" | "warning" | "error";
@@ -14,7 +15,7 @@ type SourceHealth = "ok" | "warning" | "error";
 /**
  * Callable: triggers a full dashboard sync for the authenticated user.
  *
- * - Rate-limited: at most 1 call per 3 minutes per user.
+ * - Rate-limited: at most 1 call per 60 seconds per user (15s if force=true).
  * - Runs calendar, mail, and task syncs in parallel.
  * - Retains last successful data if a source fails.
  * - Updates dashboard/current.sync with live status.
@@ -25,6 +26,11 @@ export const syncDashboard = onCall(
   async (request) => {
     const uid = requireMuDomain(request);
     const db = getDb();
+    const isForce = Boolean(
+      (request.data as Record<string, unknown> | undefined)?.force
+    );
+    const minCooldown = isForce ? FORCE_COOLDOWN_MS : SYNC_COOLDOWN_MS;
+
     const dashRef = db
       .collection("users")
       .doc(uid)
@@ -41,9 +47,9 @@ export const syncDashboard = onCall(
         | undefined;
       if (lastAtTs) {
         const lastAt = lastAtTs.toDate();
-        if (Date.now() - lastAt.getTime() < SYNC_COOLDOWN_MS) {
+        if (Date.now() - lastAt.getTime() < minCooldown) {
           const secondsRemaining = Math.ceil(
-            (SYNC_COOLDOWN_MS - (Date.now() - lastAt.getTime())) / 1000
+            (minCooldown - (Date.now() - lastAt.getTime())) / 1000
           );
           throw new HttpsError(
             "resource-exhausted",
@@ -133,7 +139,7 @@ export const syncDashboard = onCall(
 
     const now = admin.firestore.Timestamp.now();
     const nextSyncAt = admin.firestore.Timestamp.fromDate(
-      new Date(Date.now() + 15 * 60 * 1000)
+      new Date(Date.now() + 5 * 60 * 1000)
     );
 
     const overallStatus = Object.values(sourceHealth).every((h) => h === "ok")

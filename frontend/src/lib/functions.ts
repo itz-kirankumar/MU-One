@@ -62,6 +62,15 @@ export interface GetFullMailResult {
   bodyText?: string;
   formattedHtml?: string;
   attachments?: MailAttachmentInfo[];
+  extractedDueDate?: string;
+}
+
+export interface ResearchMailTopicResult {
+  topicType: 'company' | 'competition' | 'speaker' | 'general';
+  summary: string;
+  keyPoints: string[];
+  suggestedQuestions: string[];
+  sources: Array<{ title: string; url: string }>;
 }
 
 // ─── Typed Cloud Function wrappers ───────────────────────────────────────────
@@ -172,5 +181,36 @@ export async function getFullMailMessage(data: {
 }): Promise<GetFullMailResult> {
   const fn = httpsCallable<typeof data, GetFullMailResult>(functions, 'getFullMailMessage');
   const result = await fn(data);
+  return result.data;
+}
+
+/**
+ * Research the topic of an email using Tavily AI search.
+ */
+export async function researchMailTopic(params: {
+  subject?: string;
+  body?: string;
+  snippet?: string;
+  query?: string;
+  type?: 'company' | 'competition' | 'speaker' | 'general';
+}): Promise<ResearchMailTopicResult> {
+  try {
+    const res = await fetch('/api/research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // Fall back to Cloud Functions if local API route fails
+  }
+
+  const fn = httpsCallable<typeof params, ResearchMailTopicResult>(
+    functions,
+    'researchMailTopic'
+  );
+  const result = await fn(params);
   return result.data;
 }
