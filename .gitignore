@@ -43,3 +43,6 @@ Thumbs.db
 # Editor
 .vscode/settings.json
 .idea/
+
+# Vercel local project state
+.vercel/
