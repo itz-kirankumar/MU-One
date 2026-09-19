@@ -82,6 +82,13 @@ export interface MailSignal {
   receivedAt: string;   // ISO
   isDeadlineSignal?: boolean;
   dueDate?: string | null;
+  deadlineSource?: 'deterministic' | 'jev' | null;
+  jevClassification?: {
+    model: string;
+    category: 'deadline' | 'action' | 'information' | 'spam';
+    confidence: number;
+    urgency: number;
+  };
   importance?: 'high' | 'medium' | 'low';
   labels?: string[];
   threadId?: string;

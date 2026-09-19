@@ -4,14 +4,52 @@ import { getAccessToken } from "../auth/tokenStore";
 import { normalizeMessage, senderDomain } from "../utils/mailParsing";
 import { withBackoff } from "../utils/backoff";
 import { getDb } from "../utils/getDb";
+import { JEV_MODEL } from "../config/params";
+import {
+  applyJevMailFallback,
+  classifyMailWithJev,
+  isJevMailClassification,
+} from "../integrations/jev";
 
 const GMAIL_QUERY = "from:mastersunion.org newer_than:90d";
 const MAX_MESSAGES = 60;
+const MAX_JEV_FALLBACKS = 12;
+const JEV_CONCURRENCY = 3;
 
 interface SyncMailResult {
   messagesScanned: number;
   messagesNormalized: number;
   warnings: string[];
+}
+
+async function enrichWithJevFallbacks(
+  db: ReturnType<typeof getDb>,
+  uid: string,
+  mails: ReturnType<typeof normalizeMessage>[],
+): Promise<void> {
+  const apiKey = process.env.EXPLABS_API_KEY?.trim();
+  if (!apiKey) return;
+  const candidates = mails.filter(mail => !mail.isDeadlineSignal).slice(0, MAX_JEV_FALLBACKS);
+  let nextIndex = 0;
+  let failures = 0;
+  const workers = Array.from({ length: Math.min(JEV_CONCURRENCY, candidates.length) }, async () => {
+    while (nextIndex < candidates.length) {
+      const mail = candidates[nextIndex++];
+      const ref = db.collection("users").doc(uid).collection("mailSignals").doc(mail.messageId);
+      try {
+        const existing = await ref.get();
+        const cached = existing.data()?.["jevClassification"];
+        const classification = isJevMailClassification(cached)
+          ? cached
+          : await classifyMailWithJev(apiKey, mail, JEV_MODEL.value());
+        Object.assign(mail, applyJevMailFallback(mail, classification));
+      } catch {
+        failures += 1;
+      }
+    }
+  });
+  await Promise.all(workers);
+  if (failures) console.warn(`[mail] JEV fallback skipped ${failures} message(s).`);
 }
 
 /**
@@ -83,6 +121,10 @@ export async function syncUserMail(uid: string): Promise<SyncMailResult> {
     }
   }
 
+  // Deterministic rules stay authoritative. JEV only classifies a bounded,
+  // cached set of messages that those rules could not identify.
+  await enrichWithJevFallbacks(db, uid, normalizedMessages);
+
   // Write to Firestore in batches
   const BATCH_SIZE = 500;
   for (let i = 0; i < normalizedMessages.length; i += BATCH_SIZE) {
@@ -104,15 +146,19 @@ export async function syncUserMail(uid: string): Promise<SyncMailResult> {
   }
 
   // Dashboard summary: prioritize deadline signals, then other recent MU mail
-  const deadlineMails = normalizedMessages
-    .filter((m) => m.isDeadlineSignal)
+  const deterministicDeadlineMails = normalizedMessages
+    .filter((m) => m.isDeadlineSignal && m.deadlineSource !== "jev")
+    .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+
+  const jevDeadlineMails = normalizedMessages
+    .filter((m) => m.isDeadlineSignal && m.deadlineSource === "jev")
     .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 
   const otherMails = normalizedMessages
     .filter((m) => !m.isDeadlineSignal)
     .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 
-  const importantMail = [...deadlineMails, ...otherMails].slice(0, 30);
+  const importantMail = [...deterministicDeadlineMails, ...jevDeadlineMails, ...otherMails].slice(0, 30);
 
   await db
     .collection("users")

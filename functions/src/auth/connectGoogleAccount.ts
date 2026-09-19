@@ -4,11 +4,14 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { OAuth2Client } from "google-auth-library";
 import { storeTokens } from "./tokenStore";
 import { getDb } from "../utils/getDb";
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI ?? "";
-const DASHBOARD_URL = process.env.DASHBOARD_URL ?? "https://mu-one.web.app";
+import {
+  DASHBOARD_URL,
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URI,
+  TOKEN_ENCRYPTION_KEY,
+} from "../config/params";
+import { buildDashboardRedirect } from "./oauthRedirect";
 
 const REQUIRED_SCOPES = [
   // Read/write: createCalendarEvent needs write access, so requesting
@@ -24,9 +27,9 @@ const REQUIRED_SCOPES = [
 
 function buildOAuth2Client(): OAuth2Client {
   return new OAuth2Client(
-    GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET,
-    GOOGLE_REDIRECT_URI
+    GOOGLE_CLIENT_ID.value(),
+    GOOGLE_CLIENT_SECRET.value(),
+    GOOGLE_REDIRECT_URI.value()
   );
 }
 
@@ -34,7 +37,7 @@ function buildOAuth2Client(): OAuth2Client {
  * Callable function: returns the Google OAuth authorization URL.
  * The client redirects the user to this URL to begin the OAuth flow.
  */
-export const getGoogleAuthUrl = onCall(async (request) => {
+export const getGoogleAuthUrl = onCall({ secrets: [GOOGLE_CLIENT_SECRET] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError(
       "unauthenticated",
@@ -76,11 +79,13 @@ export const getGoogleAuthUrl = onCall(async (request) => {
  *  5. Update user profile in Firestore
  *  6. Redirect to dashboard
  */
-export const connectGoogleAccount = onRequest(async (req, res) => {
+export const connectGoogleAccount = onRequest({
+  secrets: [GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY],
+}, async (req, res) => {
   const { code, state: uid, error } = req.query as Record<string, string>;
 
   if (error) {
-    res.redirect(`${DASHBOARD_URL}?google_connect=denied&reason=${encodeURIComponent(error)}`);
+    res.redirect(buildDashboardRedirect(DASHBOARD_URL.value(), "denied", error));
     return;
   }
 
@@ -106,7 +111,7 @@ export const connectGoogleAccount = onRequest(async (req, res) => {
     if (!tokens.refresh_token) {
       // No refresh token means user already authorized before without consent prompt
       res.redirect(
-        `${DASHBOARD_URL}?google_connect=error&reason=no_refresh_token`
+        buildDashboardRedirect(DASHBOARD_URL.value(), "error", "no_refresh_token")
       );
       return;
     }
@@ -120,7 +125,7 @@ export const connectGoogleAccount = onRequest(async (req, res) => {
 
     if (!tokenEmail.toLowerCase().endsWith("@mastersunion.org")) {
       res.redirect(
-        `${DASHBOARD_URL}?google_connect=error&reason=wrong_domain`
+        buildDashboardRedirect(DASHBOARD_URL.value(), "error", "wrong_domain")
       );
       return;
     }
@@ -129,7 +134,7 @@ export const connectGoogleAccount = onRequest(async (req, res) => {
     const firebaseEmail = (userRecord.email ?? "").toLowerCase();
     if (firebaseEmail !== tokenEmail.toLowerCase()) {
       res.redirect(
-        `${DASHBOARD_URL}?google_connect=error&reason=email_mismatch`
+        buildDashboardRedirect(DASHBOARD_URL.value(), "error", "email_mismatch")
       );
       return;
     }
@@ -178,12 +183,12 @@ export const connectGoogleAccount = onRequest(async (req, res) => {
         { merge: true }
       );
 
-    res.redirect(`${DASHBOARD_URL}?google_connect=success`);
+    res.redirect(buildDashboardRedirect(DASHBOARD_URL.value(), "success"));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     // Do not log tokens or sensitive data
     res.redirect(
-      `${DASHBOARD_URL}?google_connect=error&reason=${encodeURIComponent(message.slice(0, 100))}`
+      buildDashboardRedirect(DASHBOARD_URL.value(), "error", message)
     );
   }
 });

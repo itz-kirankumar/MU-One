@@ -4,6 +4,7 @@ import { syncUserCalendar } from "./syncUserCalendar";
 import { syncUserMail } from "./syncUserMail";
 import { syncUserGoogleTasks } from "./syncUserGoogleTasks";
 import { getDb } from "../utils/getDb";
+import { EXPLABS_API_KEY, GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY } from "../config/params";
 
 const MAX_USERS_PER_RUN = 50;
 const SYNC_DAYS = 30;
@@ -27,6 +28,7 @@ export const scheduledSyncAllUsers = onSchedule(
     schedule: "every 5 minutes",
     timeoutSeconds: 540, // 9 minutes max
     memory: "512MiB",
+    secrets: [GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY, EXPLABS_API_KEY],
   },
   async (_event) => {
     const db = getDb();

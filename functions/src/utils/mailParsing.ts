@@ -11,6 +11,14 @@ export interface NormalizedMailSignal {
   receivedAt: string; // ISO
   isDeadlineSignal: boolean;
   dueDate: string | null; // ISO date (YYYY-MM-DD) or null
+  deadlineSource?: "deterministic" | "jev" | null;
+  importance?: "high" | "medium" | "low";
+  jevClassification?: {
+    model: string;
+    category: "deadline" | "action" | "information" | "spam";
+    confidence: number;
+    urgency: number;
+  };
   gmailLink: string;
 }
 
@@ -79,14 +87,16 @@ export function normalizeMessage(message: Record<string, unknown>): NormalizedMa
 
   const gmailLink = `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
 
+  const isDeadlineSignal = hasDeadlineKeyword || dueDate !== null;
   return {
     messageId,
     sender,
     subject,
     snippet,
     receivedAt,
-    isDeadlineSignal: hasDeadlineKeyword || dueDate !== null,
+    isDeadlineSignal,
     dueDate,
+    deadlineSource: isDeadlineSignal ? "deterministic" : null,
     gmailLink,
   };
 }

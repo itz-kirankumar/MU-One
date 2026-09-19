@@ -5,6 +5,7 @@ import { syncUserCalendar } from "./syncUserCalendar";
 import { syncUserMail } from "./syncUserMail";
 import { syncUserGoogleTasks } from "./syncUserGoogleTasks";
 import { getDb } from "../utils/getDb";
+import { EXPLABS_API_KEY, GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY } from "../config/params";
 
 const SYNC_COOLDOWN_MS = 60 * 1000; // 60 seconds
 const FORCE_COOLDOWN_MS = 15 * 1000; // 15 seconds for manual force
@@ -22,7 +23,7 @@ type SourceHealth = "ok" | "warning" | "error";
  * - Returns { jobId, status }
  */
 export const syncDashboard = onCall(
-  { timeoutSeconds: 300 },
+  { timeoutSeconds: 300, secrets: [GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY, EXPLABS_API_KEY] },
   async (request) => {
     const uid = requireMuDomain(request);
     const db = getDb();
