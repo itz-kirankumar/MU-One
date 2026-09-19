@@ -18,7 +18,7 @@ const currentEvent: NormalizedEvent = {
   startIso: `${todayIso}T09:00:00+05:30`,
   endIso: `${todayIso}T11:00:00+05:30`,
   sourceCalendarName: 'PGP TBM · Term 2',
-  descriptionExcerpt: 'Course: Business Strategy\nFaculty: Prof. Asha Rao\nVenue: Room C-204',
+  descriptionExcerpt: 'Description: Motivation and decision making\nCourse Name: Consumer Behaviour\nFaculty: Prof. Asha Rao\nMode: offline\nVenue: Room C-204',
   activityType: 'Session',
   htmlLink: 'https://calendar.google.com/event?eid=event-1',
 };
@@ -40,27 +40,35 @@ jest.mock('../src/contexts/DashboardContext', () => ({
   useDashboard: () => mockDashboard,
 }));
 
-test('derives specific course, venue, faculty, source, date, and time details', () => {
+test('keeps course name separate from session title without exposing faculty', () => {
   const details = getCalendarEventDetails(currentEvent);
   expect(details).toMatchObject({
-    course: 'Business Strategy',
+    title: 'Session 3: Market entry strategy',
+    course: 'Consumer Behaviour',
+    description: 'Motivation and decision making',
     venue: 'Room C-204',
-    faculty: 'Prof. Asha Rao',
+    venueLabel: 'In class',
     source: 'PGP TBM · Term 2',
-    activity: 'Session',
   });
+  expect(details).not.toHaveProperty('faculty');
   expect(details.date).not.toBe('Not provided');
   expect(details.time).toContain('09:00');
 });
 
-test('event cards expose every calendar detail with explicit labels', () => {
+test('event cards show the compact hierarchy and expand on request', () => {
   render(<CalendarEventCard event={currentEvent} onAddTask={jest.fn()} />);
-  for (const label of ['Course', 'Date', 'Time', 'Venue', 'Faculty / host', 'Calendar']) {
-    expect(screen.getByText(label)).toBeVisible();
-  }
-  expect(screen.getByText('Business Strategy')).toBeVisible();
-  expect(screen.getByText('Prof. Asha Rao')).toBeVisible();
+  expect(screen.getByText('Consumer Behaviour')).toBeVisible();
+  expect(screen.getByText(currentEvent.title)).toBeVisible();
+  expect(screen.getByText('Motivation and decision making')).toBeVisible();
+  expect(screen.getByText('In class')).toBeVisible();
+  expect(screen.queryByText(/Prof\. Asha Rao/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Date')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Add to tasks' })).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+  expect(screen.getByText('Date')).toBeVisible();
+  expect(screen.getByText('Calendar')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('weekly calendar uses one clear control for the complete schedule', () => {
@@ -73,4 +81,3 @@ test('weekly calendar uses one clear control for the complete schedule', () => {
   expect(screen.getByText(futureEvent.title)).toBeVisible();
   expect(screen.getByRole('button', { name: 'This week' })).toHaveAttribute('aria-expanded', 'true');
 });
-

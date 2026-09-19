@@ -66,6 +66,8 @@ export interface NormalizedEvent {
   activityType?: string;
   subject?: string;
   course?: string;
+  sessionDescription?: string;
+  mode?: string;
   location?: string;
   faculty?: string;
   organizerName?: string;

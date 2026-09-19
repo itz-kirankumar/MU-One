@@ -17,6 +17,8 @@ export interface NormalizedEvent {
   subject: string;
   activityType: string;
   course: string;
+  sessionDescription: string;
+  mode: string;
   location: string;
   faculty: string;
   organizerName: string;
@@ -101,8 +103,14 @@ export function normalizeEvent(
   const subject = extractSubject(title, description);
   const activityType = extractActivityType(title);
   const course =
-    extractDescriptionField(description, ["Course", "Subject", "Module", "Programme", "Program"]) ||
+    extractDescriptionField(description, ["Course Name", "Course", "Subject", "Module", "Programme", "Program"]) ||
     subject;
+  const sessionDescription = extractDescriptionField(description, [
+    "Description",
+    "Session Description",
+    "Topic",
+  ]);
+  const mode = extractDescriptionField(description, ["Mode", "Delivery Mode", "Format"]);
   const location =
     stringField(event["location"]) ||
     extractDescriptionField(description, ["Venue", "Location", "Room", "Classroom"]);
@@ -147,6 +155,8 @@ export function normalizeEvent(
     subject,
     activityType,
     course,
+    sessionDescription,
+    mode,
     location,
     faculty,
     organizerName,
