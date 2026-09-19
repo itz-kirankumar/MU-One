@@ -1,145 +1,186 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Calendar, CalendarDays } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CalendarEventCard } from '@/components/dashboard/CalendarEventCard';
+import { getCalendarEventDetails } from '@/lib/calendarEventDetails';
 import type { NormalizedEvent } from '@/types';
 
-function getLocalDateIso(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const date = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${date}`;
+type CalendarView = 'day' | 'week' | 'month';
+const VIEW_KEY = 'muone.calendarView';
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function getEndOfWeekIso(d: Date = new Date()): string {
-  const current = new Date(d);
-  const day = current.getDay(); // 0 is Sunday, 1 is Monday, ...
-  const daysToSunday = day === 0 ? 0 : 7 - day;
-  const sunday = new Date(current);
-  sunday.setDate(current.getDate() + daysToSunday);
-  const y = sunday.getFullYear();
-  const m = String(sunday.getMonth() + 1).padStart(2, '0');
-  const date = String(sunday.getDate()).padStart(2, '0');
-  return `${y}-${m}-${date}`;
+function eventKey(event: NormalizedEvent, index = 0): string {
+  return event.id || event.googleEventId || event.iCalUID || `${event.startIso}-${index}`;
 }
 
-function groupByDate(events: NormalizedEvent[]): Map<string, NormalizedEvent[]> {
-  const map = new Map<string, NormalizedEvent[]>();
-  for (const ev of events) {
-    const dateKey = ev.startIso.slice(0, 10); // YYYY-MM-DD
-    if (!map.has(dateKey)) map.set(dateKey, []);
-    map.get(dateKey)!.push(ev);
+function addDays(date: Date, amount: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function startOfWeek(date: Date): Date {
+  return addDays(date, -date.getDay());
+}
+
+function calendarDays(selected: Date, view: CalendarView): Date[] {
+  if (view === 'day') return [new Date(selected)];
+  if (view === 'week') {
+    const start = startOfWeek(selected);
+    return Array.from({ length: 7 }, (_, index) => addDays(start, index));
   }
-  return map;
+  const first = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  const gridStart = startOfWeek(first);
+  const daysInMonth = new Date(selected.getFullYear(), selected.getMonth() + 1, 0).getDate();
+  const cellCount = Math.ceil((first.getDay() + daysInMonth) / 7) * 7;
+  return Array.from({ length: cellCount }, (_, index) => addDays(gridStart, index));
 }
 
-function formatGroupDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
+function headerLabel(date: Date, view: CalendarView): string {
+  if (view === 'day') return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (view === 'week') {
+    const start = startOfWeek(date);
+    const end = addDays(start, 6);
+    return `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+  return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
 
-  if (d.getTime() === today.getTime()) return 'Today';
-  if (d.getTime() === tomorrow.getTime()) return 'Tomorrow';
-  return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+function CalendarPill({ event, onSelect }: { event: NormalizedEvent; onSelect: () => void }) {
+  const details = getCalendarEventDetails(event);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      title={`${details.course}: ${details.title} · ${details.time}`}
+      className="flex h-6 w-full items-center gap-1.5 rounded-md border border-[#383838] bg-[#202020] px-1.5 text-left text-[10px] text-gray-200 transition-colors hover:border-[#675a2b] hover:bg-[#28251a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#f7d344]" aria-hidden="true" />
+      <span className="truncate">{details.course}</span>
+    </button>
+  );
 }
 
 export function AgendaList() {
   const { dashboardData, loading } = useDashboard();
-  const [showAllScheduled, setShowAllScheduled] = useState(false);
+  const [view, setView] = useState<CalendarView>('month');
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
 
-  const todayStr = getLocalDateIso();
-  const endOfWeekStr = getEndOfWeekIso();
+  useEffect(() => {
+    const saved = window.localStorage.getItem(VIEW_KEY);
+    if (saved !== 'day' && saved !== 'week' && saved !== 'month') return;
+    const timer = window.setTimeout(() => setView(saved), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
-  // Non-deadline events from today onwards, sorted chronologically
-  const rawEvents = dashboardData?.events ?? (dashboardData as { agenda?: NormalizedEvent[] })?.agenda ?? [];
-  const upcomingEvents = [...rawEvents]
-    .filter((e) => !e.isDeadline && (e.startIso.slice(0, 10) >= todayStr || !e.startIso.includes('-')))
-    .sort((a, b) => a.startIso.localeCompare(b.startIso));
+  const events = useMemo(() => {
+    const primary = dashboardData?.calendarAvailability?.events ?? dashboardData?.events ?? [];
+    const fallback = dashboardData?.events ?? (dashboardData as { agenda?: NormalizedEvent[] })?.agenda ?? [];
+    const unique = new Map<string, NormalizedEvent>();
+    [...primary, ...fallback].filter(event => !event.isDeadline).forEach((event, index) => unique.set(eventKey(event, index), event));
+    return [...unique.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
+  }, [dashboardData]);
 
-  // Events strictly for this week (from today through Sunday of current week)
-  const thisWeekEvents = upcomingEvents.filter(
-    (e) => e.startIso.slice(0, 10) <= endOfWeekStr
-  );
+  const grouped = useMemo(() => {
+    const result = new Map<string, NormalizedEvent[]>();
+    for (const event of events) {
+      const key = event.startIso.slice(0, 10);
+      result.set(key, [...(result.get(key) ?? []), event]);
+    }
+    return result;
+  }, [events]);
 
-  // Events beyond this week (ongoing planned scheduled)
-  const beyondThisWeekEvents = upcomingEvents.filter(
-    (e) => e.startIso.slice(0, 10) > endOfWeekStr
-  );
+  const days = calendarDays(selectedDate, view);
+  const today = dateKey(new Date());
+  const visibleEvents = days.flatMap(day => grouped.get(dateKey(day)) ?? []);
 
-  const displayedEvents = showAllScheduled ? upcomingEvents : thisWeekEvents;
-  const grouped = groupByDate(displayedEvents);
-  const dateKeys = [...grouped.keys()].sort();
+  const chooseView = (next: CalendarView) => {
+    setView(next);
+    setSelectedEvent(null);
+    window.localStorage.setItem(VIEW_KEY, next);
+  };
+
+  const navigate = (direction: -1 | 1) => {
+    setSelectedDate(current => {
+      if (view === 'day') return addDays(current, direction);
+      if (view === 'week') return addDays(current, direction * 7);
+      return new Date(current.getFullYear(), current.getMonth() + direction, 1);
+    });
+    setSelectedEvent(null);
+  };
 
   return (
-    <section className="rounded-xl border border-[#222] bg-[#161616] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#1A1A1A] flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <h3 className="text-sm font-semibold text-white">This Week</h3>
-          <span className="text-[10px] text-gray-400 bg-[#202020] px-2 py-0.5 rounded border border-[#2A2A2A]">
-            {displayedEvents.length} event{displayedEvents.length === 1 ? '' : 's'}
-          </span>
+    <section className="overflow-hidden rounded-xl border border-[#242424] bg-[#131313]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#242424] px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => navigate(-1)} aria-label={`Previous ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setSelectedDate(new Date())} title="Go to today" className="min-w-36 rounded-md px-2 py-1 text-sm font-semibold text-white hover:bg-[#202020]">{headerLabel(selectedDate, view)}</button>
+          <button type="button" onClick={() => navigate(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><ChevronRight className="h-4 w-4" /></button>
         </div>
-
-        {beyondThisWeekEvents.length > 0 && (
-          <button
-            onClick={() => setShowAllScheduled((s) => !s)}
-            aria-expanded={showAllScheduled}
-            aria-controls="calendar-events-list"
-            title={showAllScheduled ? 'Return to this week' : 'Open full calendar'}
-            className="flex min-h-10 items-center gap-2 rounded-lg border border-[#3a3420] bg-[#1d1a11] px-3 text-xs font-semibold text-[#f7d344] transition-colors hover:border-[#665a2d] hover:bg-[#242013] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
-          >
-            <CalendarDays className="h-4 w-4" aria-hidden="true" />
-            {showAllScheduled ? 'This week' : 'Open full calendar'}
-          </button>
-        )}
+        <div className="inline-flex rounded-lg border border-[#303030] bg-[#0d0d0d] p-1" aria-label="Calendar view">
+          {(['day', 'week', 'month'] as CalendarView[]).map(option => (
+            <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} title={`${option[0].toUpperCase() + option.slice(1)} view · saves as default`} className={`h-7 rounded-md px-3 text-xs font-medium capitalize transition-colors ${view === option ? 'bg-[#302a15] text-[#f7d344]' : 'text-gray-400 hover:text-white'}`}>
+              {option}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div id="calendar-events-list" className={`px-4 py-3 overflow-y-auto custom-scrollbar ${showAllScheduled ? 'max-h-[720px]' : 'max-h-[520px]'}`}>
-        {loading ? (
-          <div className="space-y-3 py-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-10 animate-pulse rounded bg-[#2A2A2A]" />
-            ))}
-          </div>
-        ) : displayedEvents.length === 0 ? (
-          <EmptyState
-            icon={Calendar}
-            title={showAllScheduled ? "No scheduled events" : "No upcoming events this week"}
-            description={
-              beyondThisWeekEvents.length > 0 && !showAllScheduled
-                ? `You have ${beyondThisWeekEvents.length} events scheduled in upcoming weeks. Click above to view.`
-                : "Calendar events will appear here once synced"
-            }
-          />
-        ) : (
-          <div className="divide-y divide-[#1A1A1A]">
-            {dateKeys.map((dateKey) => {
-              const dayEvents = grouped.get(dateKey)!;
-              return (
-                <div key={dateKey} className="py-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
-                    {formatGroupDate(dateKey)}
-                  </p>
-                  <div className="space-y-3">
-                    {dayEvents.map((ev, idx) => (
-                      <CalendarEventCard
-                        key={ev.id || ev.googleEventId || ev.iCalUID || `agenda-${idx}-${ev.startIso}`}
-                        event={ev}
-                      />
-                    ))}
+      {loading ? (
+        <div className="grid min-h-64 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#f7d344] border-t-transparent" /></div>
+      ) : events.length === 0 ? (
+        <EmptyState icon={Calendar} title="No calendar events" description="Calendar events will appear here once synced" />
+      ) : view === 'day' ? (
+        <div className="p-3">
+          {visibleEvents.length ? <div className="grid gap-2 md:grid-cols-2">{visibleEvents.map((event, index) => <CalendarEventCard key={eventKey(event, index)} event={event} />)}</div> : <p className="py-12 text-center text-xs text-gray-500">No events on this day.</p>}
+        </div>
+      ) : (
+        <div className="overflow-x-auto custom-scrollbar">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-7 border-b border-[#292929] bg-[#101010]">
+              {WEEKDAYS.map(day => <div key={day} className="px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-500">{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7">
+              {days.map(day => {
+                const key = dateKey(day);
+                const dayEvents = grouped.get(key) ?? [];
+                const outsideMonth = view === 'month' && day.getMonth() !== selectedDate.getMonth();
+                const visibleLimit = view === 'month' ? 3 : 6;
+                return (
+                  <div key={key} className={`min-h-24 border-b border-r border-[#282828] p-1.5 ${key === today ? 'bg-[#242015]' : outsideMonth ? 'bg-[#0e0e0e]' : 'bg-[#151515]'}`}>
+                    <div className={`mb-1 text-right text-[10px] font-medium ${key === today ? 'text-[#f7d344]' : outsideMonth ? 'text-gray-700' : 'text-gray-400'}`}>{day.getDate()}</div>
+                    <div className="space-y-1">
+                      {dayEvents.slice(0, visibleLimit).map((event, index) => <CalendarPill key={eventKey(event, index)} event={event} onSelect={() => setSelectedEvent(event)} />)}
+                      {dayEvents.length > visibleLimit && <button type="button" onClick={() => { setSelectedDate(day); chooseView('day'); }} className="px-1 text-[10px] font-medium text-[#d8bd4d] hover:underline">+{dayEvents.length - visibleLimit} more</button>}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
+      {selectedEvent && view !== 'day' && (
+        <div className="border-t border-[#2a2a2a] bg-[#101010] p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Event details</p>
+            <button type="button" onClick={() => setSelectedEvent(null)} aria-label="Close event details" className="grid h-7 w-7 place-items-center rounded-md text-gray-500 hover:bg-[#222] hover:text-white"><X className="h-3.5 w-3.5" /></button>
+          </div>
+          <CalendarEventCard event={selectedEvent} />
+        </div>
+      )}
     </section>
   );
 }

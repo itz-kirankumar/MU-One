@@ -71,13 +71,15 @@ test('event cards show the compact hierarchy and expand on request', () => {
   expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('weekly calendar uses one clear control for the complete schedule', () => {
+test('calendar defaults to a compact month grid and saves the selected view', () => {
+  window.localStorage.clear();
   render(<AgendaList />);
-  expect(screen.getAllByRole('button', { name: 'Open full calendar' })).toHaveLength(1);
-  expect(screen.queryByText(/collapse/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(futureEvent.title)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'month' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'day' })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getAllByText('Consumer Behaviour').length).toBeGreaterThan(0);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Open full calendar' }));
-  expect(screen.getByText(futureEvent.title)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'This week' })).toHaveAttribute('aria-expanded', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'day' }));
+  expect(screen.getByRole('button', { name: 'day' })).toHaveAttribute('aria-pressed', 'true');
+  expect(window.localStorage.getItem('muone.calendarView')).toBe('day');
+  expect(screen.getByText(currentEvent.title)).toBeVisible();
 });

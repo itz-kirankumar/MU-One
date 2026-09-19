@@ -22,7 +22,8 @@ interface SyncCalendarResult {
  * Syncs Google Calendar events for a user into Firestore.
  *
  * - Retrieves all calendars, skipping holiday calendars.
- * - Fetches events in the window [now, now + syncDays].
+ * - Fetches events from the start of the previous month through now + syncDays
+ *   so month views include recent calendar history.
  * - De-duplicates by iCalUID.
  * - Writes events to /users/{uid}/calendarEvents/{iCalUID}.
  * - Updates dashboard/current.agenda and dashboard/current.deadlines.
@@ -39,6 +40,7 @@ export async function syncUserCalendar(
   const calendar = google.calendar({ version: "v3", auth });
 
   const now = new Date();
+  const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const timeMax = new Date(now.getTime() + syncDays * 24 * 60 * 60 * 1000);
   let coverageComplete = true;
 
@@ -82,7 +84,7 @@ export async function syncUserCalendar(
       const eventsResponse = await withBackoff(() =>
         calendar.events.list({
           calendarId: cal.id,
-          timeMin: now.toISOString(),
+          timeMin: timeMin.toISOString(),
           timeMax: timeMax.toISOString(),
           singleEvents: true,
           orderBy: "startTime",
@@ -134,7 +136,9 @@ export async function syncUserCalendar(
   }
 
   // Build dashboard summaries
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const upcoming = allNormalizedEvents
+    .filter((event) => event.startIso >= todayStart.toISOString())
     .sort((a, b) => a.startIso.localeCompare(b.startIso))
     .slice(0, 50);
 
@@ -153,7 +157,7 @@ export async function syncUserCalendar(
         deadlines,
         calendarAvailability: {
           events: busyOccurrences,
-          from: now.toISOString(),
+          from: timeMin.toISOString(),
           to: timeMax.toISOString(),
           complete: coverageComplete && warnings.length === 0,
           syncedAt: new Date().toISOString(),
