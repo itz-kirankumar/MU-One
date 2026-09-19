@@ -82,4 +82,9 @@ test('calendar defaults to a compact month grid and saves the selected view', ()
   expect(screen.getByRole('button', { name: 'day' })).toHaveAttribute('aria-pressed', 'true');
   expect(window.localStorage.getItem('muone.calendarView')).toBe('day');
   expect(screen.getByText(currentEvent.title)).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'timeline' }));
+  expect(screen.getByRole('button', { name: 'timeline' })).toHaveAttribute('aria-pressed', 'true');
+  expect(window.localStorage.getItem('muone.calendarView')).toBe('timeline');
+  expect(screen.getByText(currentEvent.title)).toBeVisible();
 });

@@ -8,7 +8,7 @@ import { CalendarEventCard } from '@/components/dashboard/CalendarEventCard';
 import { getCalendarEventDetails } from '@/lib/calendarEventDetails';
 import type { NormalizedEvent } from '@/types';
 
-type CalendarView = 'day' | 'week' | 'month';
+type CalendarView = 'day' | 'week' | 'month' | 'timeline';
 const VIEW_KEY = 'muone.calendarView';
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -56,6 +56,14 @@ function headerLabel(date: Date, view: CalendarView): string {
   return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
+function timelineDateLabel(value: string): { day: string; date: string } {
+  const date = new Date(`${value}T00:00:00`);
+  return {
+    day: date.toLocaleDateString('en-GB', { weekday: 'short' }),
+    date: date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+  };
+}
+
 function CalendarPill({ event, onSelect }: { event: NormalizedEvent; onSelect: () => void }) {
   const details = getCalendarEventDetails(event);
   return (
@@ -79,7 +87,7 @@ export function AgendaList() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem(VIEW_KEY);
-    if (saved !== 'day' && saved !== 'week' && saved !== 'month') return;
+    if (saved !== 'day' && saved !== 'week' && saved !== 'month' && saved !== 'timeline') return;
     const timer = window.setTimeout(() => setView(saved), 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -104,6 +112,8 @@ export function AgendaList() {
   const days = calendarDays(selectedDate, view);
   const today = dateKey(new Date());
   const visibleEvents = days.flatMap(day => grouped.get(dateKey(day)) ?? []);
+  const selectedMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
+  const timelineKeys = [...grouped.keys()].filter(key => key.startsWith(selectedMonth)).sort();
 
   const chooseView = (next: CalendarView) => {
     setView(next);
@@ -129,7 +139,7 @@ export function AgendaList() {
           <button type="button" onClick={() => navigate(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><ChevronRight className="h-4 w-4" /></button>
         </div>
         <div className="inline-flex rounded-lg border border-[#303030] bg-[#0d0d0d] p-1" aria-label="Calendar view">
-          {(['day', 'week', 'month'] as CalendarView[]).map(option => (
+          {(['day', 'week', 'month', 'timeline'] as CalendarView[]).map(option => (
             <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} title={`${option[0].toUpperCase() + option.slice(1)} view · saves as default`} className={`h-7 rounded-md px-3 text-xs font-medium capitalize transition-colors ${view === option ? 'bg-[#302a15] text-[#f7d344]' : 'text-gray-400 hover:text-white'}`}>
               {option}
             </button>
@@ -144,6 +154,32 @@ export function AgendaList() {
       ) : view === 'day' ? (
         <div className="p-3">
           {visibleEvents.length ? <div className="grid gap-2 md:grid-cols-2">{visibleEvents.map((event, index) => <CalendarEventCard key={eventKey(event, index)} event={event} />)}</div> : <p className="py-12 text-center text-xs text-gray-500">No events on this day.</p>}
+        </div>
+      ) : view === 'timeline' ? (
+        <div className="px-3 py-4 sm:px-5">
+          {timelineKeys.length ? (
+            <div className="relative">
+              <div className="absolute bottom-2 left-[3.9rem] top-2 w-px bg-[#37331f] sm:left-[5.4rem]" aria-hidden="true" />
+              <div className="space-y-5">
+                {timelineKeys.map(key => {
+                  const label = timelineDateLabel(key);
+                  const dayEvents = grouped.get(key) ?? [];
+                  return (
+                    <section key={key} className="relative grid grid-cols-[3.25rem_1fr] gap-4 sm:grid-cols-[4.75rem_1fr]">
+                      <div className="pt-0.5 text-right">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#d8bd4d]">{label.day}</p>
+                        <p className="mt-0.5 text-xs text-gray-400">{label.date}</p>
+                      </div>
+                      <span className="absolute left-[3.55rem] top-2 h-2.5 w-2.5 rounded-full border-2 border-[#131313] bg-[#f7d344] sm:left-[5.05rem]" aria-hidden="true" />
+                      <div className="min-w-0 space-y-2 pl-2 sm:grid sm:grid-cols-2 sm:gap-2 sm:space-y-0">
+                        {dayEvents.map((event, index) => <CalendarEventCard key={eventKey(event, index)} event={event} />)}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          ) : <p className="py-12 text-center text-xs text-gray-500">No events in this month.</p>}
         </div>
       ) : (
         <div className="overflow-x-auto custom-scrollbar">
