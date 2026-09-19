@@ -4,10 +4,20 @@
 
 import {
   normalizeEvent,
+  extractDescriptionField,
   extractSubject,
   extractActivityType,
   isDeadlineEvent,
 } from "../utils/eventParsing";
+
+describe("extractDescriptionField", () => {
+  it("reads labeled values from plain text and HTML descriptions", () => {
+    const description = "<div>Course: Brand Strategy</div><div>Faculty: Prof. Mehta</div>\nRoom: C-204";
+    expect(extractDescriptionField(description, ["Course", "Subject"])).toBe("Brand Strategy");
+    expect(extractDescriptionField(description, ["Faculty", "Instructor"])).toBe("Prof. Mehta");
+    expect(extractDescriptionField(description, ["Venue", "Room"])).toBe("C-204");
+  });
+});
 
 describe("extractActivityType", () => {
   it("extracts activity type from parentheses in title", () => {
@@ -159,5 +169,25 @@ describe("normalizeEvent", () => {
     };
     const result = normalizeEvent(classEvent, "Primary", "primary");
     expect(result.isDeadline).toBe(false);
+  });
+
+  it("preserves detailed location, faculty, organizer, and meeting metadata", () => {
+    const detailedEvent = {
+      ...baseEvent,
+      description: "Course: Corporate Finance\nFaculty: Prof. Asha Rao\nVenue: fallback room",
+      location: "Room C-204",
+      organizer: { displayName: "Academic Office", email: "academics@mastersunion.org" },
+      hangoutLink: "https://meet.google.com/abc-defg-hij",
+    };
+    const result = normalizeEvent(detailedEvent, "Term 2", "calendar-2");
+    expect(result).toMatchObject({
+      course: "Corporate Finance",
+      location: "Room C-204",
+      faculty: "Prof. Asha Rao",
+      organizerName: "Academic Office",
+      organizerEmail: "academics@mastersunion.org",
+      meetingLink: "https://meet.google.com/abc-defg-hij",
+      sourceCalendarName: "Term 2",
+    });
   });
 });

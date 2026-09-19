@@ -16,9 +16,46 @@ export interface NormalizedEvent {
   htmlLink: string | null;
   subject: string;
   activityType: string;
+  course: string;
+  location: string;
+  faculty: string;
+  organizerName: string;
+  organizerEmail: string;
+  meetingLink: string;
   isDeadline: boolean;
   dateFormatted: string;
   timeFormatted: string;
+}
+
+function cleanDescription(description: string): string {
+  return description
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+export function extractDescriptionField(
+  description: string,
+  labels: string[]
+): string {
+  const text = cleanDescription(description);
+  const escaped = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const match = text.match(
+    new RegExp(`(?:^|\\n)\\s*(?:${escaped.join("|")})\\s*[:\\-]\\s*([^\\n|;]+)`, "i")
+  );
+  return match?.[1]?.trim() ?? "";
+}
+
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 const DEADLINE_TERMS = [
@@ -47,7 +84,7 @@ export function normalizeEvent(
     typeof event["summary"] === "string" ? event["summary"].trim() : "Untitled";
   const description =
     typeof event["description"] === "string" ? event["description"] : "";
-  const descriptionExcerpt = description.slice(0, 300);
+  const descriptionExcerpt = cleanDescription(description).slice(0, 600);
 
   const startObj = event["start"] as Record<string, string> | undefined;
   const endObj = event["end"] as Record<string, string> | undefined;
@@ -63,6 +100,29 @@ export function normalizeEvent(
 
   const subject = extractSubject(title, description);
   const activityType = extractActivityType(title);
+  const course =
+    extractDescriptionField(description, ["Course", "Subject", "Module", "Programme", "Program"]) ||
+    subject;
+  const location =
+    stringField(event["location"]) ||
+    extractDescriptionField(description, ["Venue", "Location", "Room", "Classroom"]);
+  const faculty = extractDescriptionField(description, [
+    "Faculty",
+    "Professor",
+    "Instructor",
+    "Facilitator",
+    "Speaker",
+    "Mentor",
+  ]);
+  const organizer = event["organizer"] as Record<string, unknown> | undefined;
+  const organizerName = stringField(organizer?.["displayName"]);
+  const organizerEmail = stringField(organizer?.["email"]);
+  const conferenceData = event["conferenceData"] as Record<string, unknown> | undefined;
+  const entryPoints = Array.isArray(conferenceData?.["entryPoints"])
+    ? conferenceData["entryPoints"] as Array<Record<string, unknown>>
+    : [];
+  const videoEntry = entryPoints.find((entry) => entry["entryPointType"] === "video");
+  const meetingLink = stringField(event["hangoutLink"]) || stringField(videoEntry?.["uri"]);
   const isDeadline = isDeadlineEvent(title, calendarName, description);
 
   const startDate = new Date(startIso);
@@ -86,6 +146,12 @@ export function normalizeEvent(
       typeof event["htmlLink"] === "string" ? event["htmlLink"] : null,
     subject,
     activityType,
+    course,
+    location,
+    faculty,
+    organizerName,
+    organizerEmail,
+    meetingLink,
     isDeadline,
     dateFormatted,
     timeFormatted,

@@ -65,6 +65,12 @@ export interface NormalizedEvent {
   isDeadline?: boolean;
   activityType?: string;
   subject?: string;
+  course?: string;
+  location?: string;
+  faculty?: string;
+  organizerName?: string;
+  organizerEmail?: string;
+  meetingLink?: string;
   description?: string;
   descriptionExcerpt?: string;
 }

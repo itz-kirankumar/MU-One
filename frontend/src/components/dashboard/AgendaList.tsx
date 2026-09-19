@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ExternalLink, Calendar, CalendarClock, ChevronDown } from 'lucide-react';
+import { Calendar, CalendarDays } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { CalendarEventCard } from '@/components/dashboard/CalendarEventCard';
 import type { NormalizedEvent } from '@/types';
 
 function getLocalDateIso(d: Date = new Date()): string {
@@ -47,20 +48,6 @@ function formatGroupDate(dateStr: string): string {
   return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
-function formatEventTime(isoStart: string, isoEnd?: string, allDay?: boolean): string {
-  if (allDay) return 'All day';
-  const start = new Date(isoStart).toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  if (!isoEnd) return start;
-  const end = new Date(isoEnd).toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  return `${start} – ${end}`;
-}
-
 export function AgendaList() {
   const { dashboardData, loading } = useDashboard();
   const [showAllScheduled, setShowAllScheduled] = useState(false);
@@ -94,31 +81,25 @@ export function AgendaList() {
         <div className="flex items-center gap-2.5">
           <h3 className="text-sm font-semibold text-white">This Week</h3>
           <span className="text-[10px] text-gray-400 bg-[#202020] px-2 py-0.5 rounded border border-[#2A2A2A]">
-            {showAllScheduled ? 'All Planned & Scheduled' : 'This Week Only'}
+            {displayedEvents.length} event{displayedEvents.length === 1 ? '' : 's'}
           </span>
         </div>
 
         {beyondThisWeekEvents.length > 0 && (
           <button
             onClick={() => setShowAllScheduled((s) => !s)}
-            title={showAllScheduled ? 'Show only this week' : 'See more ongoing planned scheduled'}
-            className="flex items-center gap-1.5 text-xs text-[#f7d344] hover:text-yellow-300 px-2.5 py-1 rounded hover:bg-[#202020] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+            aria-expanded={showAllScheduled}
+            aria-controls="calendar-events-list"
+            title={showAllScheduled ? 'Return to this week' : 'Open full calendar'}
+            className="flex min-h-10 items-center gap-2 rounded-lg border border-[#3a3420] bg-[#1d1a11] px-3 text-xs font-semibold text-[#f7d344] transition-colors hover:border-[#665a2d] hover:bg-[#242013] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
           >
-            <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">
-              {showAllScheduled ? 'This week only' : `+${beyondThisWeekEvents.length} more scheduled`}
-            </span>
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                showAllScheduled ? 'rotate-180' : ''
-              }`}
-              aria-hidden="true"
-            />
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />
+            {showAllScheduled ? 'This week' : 'Open full calendar'}
           </button>
         )}
       </div>
 
-      <div className="px-4 py-2 max-h-[380px] overflow-y-auto custom-scrollbar">
+      <div id="calendar-events-list" className={`px-4 py-3 overflow-y-auto custom-scrollbar ${showAllScheduled ? 'max-h-[720px]' : 'max-h-[520px]'}`}>
         {loading ? (
           <div className="space-y-3 py-2">
             {[1, 2, 3].map((i) => (
@@ -144,41 +125,12 @@ export function AgendaList() {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
                     {formatGroupDate(dateKey)}
                   </p>
-                  <div className="space-y-1">
+                  <div className="space-y-3">
                     {dayEvents.map((ev, idx) => (
-                      <div
+                      <CalendarEventCard
                         key={ev.id || ev.googleEventId || ev.iCalUID || `agenda-${idx}-${ev.startIso}`}
-                        className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-[#1A1A1A] transition-colors"
-                      >
-                        {/* Time chip */}
-                        <span className="min-w-[90px] text-right text-[11px] tabular-nums text-gray-500">
-                          {formatEventTime(ev.startIso, ev.endIso, ev.allDay)}
-                        </span>
-                        {/* Dot */}
-                        <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#f7d344]" />
-                        {/* Title */}
-                        <span className="flex-1 truncate text-sm text-gray-200">
-                          {ev.title.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}
-                        </span>
-                        {/* Source */}
-                        {ev.calendarName && (
-                          <span className="hidden sm:block text-[10px] text-gray-600 truncate max-w-[100px]">
-                            {ev.calendarName}
-                          </span>
-                        )}
-                        {/* External link */}
-                        {ev.htmlLink && (
-                          <a
-                            href={ev.htmlLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={`Open ${ev.title} in calendar`}
-                            className="text-gray-600 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
-                          >
-                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                          </a>
-                        )}
-                      </div>
+                        event={ev}
+                      />
                     ))}
                   </div>
                 </div>
@@ -188,25 +140,6 @@ export function AgendaList() {
         )}
       </div>
 
-      {beyondThisWeekEvents.length > 0 && (
-        <button
-          onClick={() => setShowAllScheduled((s) => !s)}
-          className="w-full py-2.5 px-4 text-center text-xs font-medium text-amber-400/90 hover:text-amber-300 hover:bg-[#1A1A1A] transition-colors flex items-center justify-center gap-2 border-t border-[#1A1A1A]"
-        >
-          <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>
-            {showAllScheduled
-              ? 'Collapse to this week only'
-              : `See ${beyondThisWeekEvents.length} more ongoing scheduled events`}
-          </span>
-          <ChevronDown
-            className={`h-3.5 w-3.5 transition-transform duration-200 ${
-              showAllScheduled ? 'rotate-180' : ''
-            }`}
-            aria-hidden="true"
-          />
-        </button>
-      )}
     </section>
   );
 }

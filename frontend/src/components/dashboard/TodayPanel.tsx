@@ -8,35 +8,14 @@ import { updatePersonalTask, createPersonalTask, deletePersonalTask } from '@/li
 import { importTodaySuggestion } from '@/lib/functions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import type { NormalizedEvent, MailSignal, PersonalTask } from '@/types';
+import { CalendarEventCard } from '@/components/dashboard/CalendarEventCard';
+import type { PersonalTask } from '@/types';
 
 function getLocalDateIso(d: Date = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-function formatTime12h(date: Date): string {
-  let hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  const minStr = minutes < 10 ? '0' + minutes : minutes;
-  return `${hours}:${minStr} ${ampm}`;
-}
-
-function formatEventTime(isoStart: string, isoEnd?: string, allDay?: boolean): string {
-  if (allDay || !isoStart || !isoStart.includes('T')) return 'All day';
-  const start = new Date(isoStart);
-  if (isNaN(start.getTime())) return 'All day';
-  const startStr = formatTime12h(start);
-  if (!isoEnd || !isoEnd.includes('T')) return startStr;
-  const end = new Date(isoEnd);
-  if (isNaN(end.getTime())) return startStr;
-  const endStr = formatTime12h(end);
-  return `${startStr} – ${endStr}`;
 }
 
 interface ImportConfirmProps {
@@ -245,36 +224,19 @@ export function TodayPanel() {
               {/* Calendar events today */}
               {todayEvents.map((ev, idx) => {
                 const eventId = ev.id || ev.googleEventId || ev.iCalUID || `today-ev-${idx}`;
-                const timeDisplay = formatEventTime(ev.startIso, ev.endIso, ev.allDay || ev.isAllDay);
                 return (
-                  <div key={eventId} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-[#1A1A1A] transition-colors group">
-                    <div className="h-4 w-4 flex-shrink-0 flex items-center justify-center">
-                      <div className="h-2 w-2 rounded-full bg-[#f7d344]" />
-                    </div>
-                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                      <span className="truncate text-sm text-gray-200 group-hover:text-white transition-colors" title={ev.title}>
-                        {ev.title}
-                      </span>
-                      <span className="flex-shrink-0 rounded bg-[#222] border border-[#2e2e2e] px-2 py-0.5 text-[11px] font-medium text-amber-300 tabular-nums">
-                        {timeDisplay}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() =>
+                  <CalendarEventCard
+                    key={eventId}
+                    event={ev}
+                    onAddTask={() =>
                         setPendingImport({
                           sourceType: 'calendar',
                           sourceId: eventId,
                           title: ev.title,
                           dueDate: todayDateStr,
                         })
-                      }
-                      title="Add to Google Tasks"
-                      className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold bg-[#0D1E3A] hover:bg-[#152B52] text-[#60A5FA] border border-[#1E3A6B] hover:border-[#2E5899] transition-all shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                    >
-                      <CheckSquare className="h-3 w-3 text-[#60A5FA]" aria-hidden="true" />
-                      <span>+ Task</span>
-                    </button>
-                  </div>
+                    }
+                  />
                 );
               })}
 
