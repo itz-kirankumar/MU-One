@@ -47,7 +47,7 @@ function SourceRefs({ ids, sources }: { ids: string[]; sources: PitchResult['sou
 }
 
 export function PitchWorkspace({ draft, onChange, saveStatus, saveError, onNewDraft, drafts, onSelectDraft }: PitchWorkspaceProps) {
-  const { user, profile } = useAuth();
+  const { user, googleConnected } = useAuth();
   const { dashboardData, syncStatus, hasSynced, triggerSync, isAutoSyncing, error: dashboardError } = useDashboard();
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState('');
@@ -137,7 +137,7 @@ export function PitchWorkspace({ draft, onChange, saveStatus, saveError, onNewDr
   }
 
   async function addResearchTask(critique: PitchResult['critiques'][number], key: string) {
-    if (!profile?.googleConnection?.connected || draft.taskIds.includes(key)) return;
+    if (!googleConnected || draft.taskIds.includes(key)) return;
     const edit = taskEdits[key] ?? { title: critique.actionTitle.slice(0, 120), dueDate: draft.input.deadline };
     const title = edit.title.trim();
     if (!title || title.length > 120 || !startAction(key)) return;
@@ -159,7 +159,7 @@ export function PitchWorkspace({ draft, onChange, saveStatus, saveError, onNewDr
 
   const result = draft.result;
   const stale = Boolean(result && JSON.stringify(draft.analyzedInput) !== JSON.stringify(draft.input));
-  const connected = Boolean(profile?.googleConnection?.connected);
+  const connected = googleConnected;
   const availability = dashboardData?.calendarAvailability;
   const calendarHealth = syncStatus?.sourceHealth?.calendar;
   const coverageValid = Boolean(availability?.complete && Number.isFinite(new Date(availability.from).getTime()) && Number.isFinite(new Date(availability.to).getTime()));

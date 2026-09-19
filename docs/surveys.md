@@ -20,7 +20,7 @@ The feed pages 20 surveys at a time. Results page 50 responses at a time; charts
 
 ## Deployment
 
-Deploy the frontend, the new `surveyPortal` callable, and the Firestore rules/indexes to enable the feature for users. No production deployment is performed by this change.
+The `surveyPortal` callable and its Firestore rules/indexes are deployed to the production Firebase project `mu-one-508502`. The frontend is released through the existing Vercel workflow.
 
 The current application defaults to the **named database `default`**, through frontend `NEXT_PUBLIC_FIREBASE_DATABASE_ID` and backend `APP_DATABASE_ID`. This differs from Firebase’s `(default)` database. The included `firebase.surveys.json` explicitly targets the named database and leaves the existing general deployment configuration unchanged. If runtime environment settings override the database, adjust this deployment target to match.
 
@@ -29,6 +29,6 @@ Deploy the callable with `firebase deploy --config firebase.surveys.json --only 
 ## Verification
 
 - Backend tests: verified-member access, anonymity projections, consent, transactional deduplication, creator-only management, expiry, validation and pagination.
-- Frontend tests: discovery, publishing/retry, privacy controls, named consent, already-answered/closed/owner states, errors and result display.
+- Frontend tests: discovery, publishing/retry, privacy controls, named consent, already-answered/closed/owner states, errors, result display, keyboard tab navigation, focus restoration and connection-state loading.
 - Browser QA uses temporary sample data; it does not publish real surveys or prove deployed Firestore integration. The temporary route is removed before delivery.
 - Both application builds and focused lint checks are run. Firestore transaction behavior is exercised through a transactional in-memory test store; a live/emulator deployment remains an integration check.

@@ -14,12 +14,23 @@ import { getGoogleAuthUrl } from '@/lib/functions';
  * step no refresh token is ever stored and every sync returns empty.
  */
 export function ConnectGoogleBanner() {
-  const { profile } = useAuth();
+  const { googleConnected, profileLoading } = useAuth();
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
 
-  const connected = profile?.googleConnection?.connected === true;
-  if (connected) return null;
+  if (googleConnected) return null;
+
+  if (profileLoading) {
+    return (
+      <div
+        className="rounded-xl border border-[#292929] bg-[#151515] px-5 py-4 text-sm text-gray-400"
+        role="status"
+        aria-live="polite"
+      >
+        Restoring your Google connection…
+      </div>
+    );
+  }
 
   async function handleConnect() {
     setConnecting(true);

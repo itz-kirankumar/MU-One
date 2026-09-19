@@ -6,6 +6,7 @@ import { surveyApi, surveyError } from '@/lib/surveys';
 import type { Survey, SurveyAnswer } from '@/types/surveys';
 
 export function SurveyDetail({ id, onBack, onResults }: { id: string; onBack: () => void; onResults: () => void }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [error, setError] = useState('');
@@ -20,6 +21,7 @@ export function SurveyDetail({ id, onBack, onResults }: { id: string; onBack: ()
       .catch(err => { if (active) setError(surveyError(err)); });
     return () => { active = false; };
   }, [id, attempt]);
+  useEffect(() => { if (survey) headingRef.current?.focus(); }, [survey]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -40,14 +42,14 @@ export function SurveyDetail({ id, onBack, onResults }: { id: string; onBack: ()
     {!survey && !error && <p role="status" className="py-16 text-center text-gray-400">Loading survey…</p>}
     {survey && <>
       <header className="space-y-3"><p className="text-xs font-semibold uppercase tracking-widest text-[#f7d344]">Community survey · {survey.status}</p>
-        <h2 className="break-words text-3xl font-semibold">{survey.title}</h2>
+        <h1 ref={headingRef} tabIndex={-1} className="break-words text-3xl font-semibold outline-none">{survey.title}</h1>
         <p className="text-sm text-gray-400">By {survey.authorName} · {survey.questions.length} questions · Closes {new Date(survey.closesAt).toLocaleDateString('en-GB')}</p>
         <p className="whitespace-pre-wrap break-words leading-7 text-gray-300">{survey.description}</p></header>
       <div className="flex items-start gap-3 rounded-xl border border-[#333] bg-[#181818] p-4"><ShieldCheck size={20} className="mt-0.5 shrink-0 text-[#f7d344]" /><div className="text-sm"><p className="font-medium">{survey.anonymousResponses ? 'Your response is anonymous to the creator' : 'Your name and email will be shared with the creator'}</p><p className="mt-1 text-xs leading-5 text-gray-400">Only the creator can read responses. {survey.anonymousResponses ? 'Avoid including identifying details in your answers. MU One keeps a private participation record to allow one response per account.' : 'Submit only if you agree to share your identity alongside your answers.'}</p></div></div>
       {survey.isOwner ? <div className="rounded-xl border border-[#333] p-6"><p className="text-sm text-gray-300">This is your survey. Other members can respond; your own answers won’t count toward validation.</p><button onClick={onResults} className="mt-4 rounded-lg bg-[#f7d344] px-4 py-2 text-sm font-semibold text-black">View results · {survey.responseCount}</button><div className="mt-5 space-y-2 text-sm text-gray-400">{survey.questions.map((q, i) => <p key={q.id}>{i + 1}. {q.title}</p>)}</div></div>
         : survey.hasResponded ? <div role="status" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-8 text-center"><CheckCircle2 className="mx-auto mb-3 text-emerald-400" size={28} /><h3 className="text-lg font-semibold">{success ? 'Thank you. Your response is in.' : 'You’ve already responded.'}</h3><p className="mt-2 text-sm text-gray-400">Your input helps this member validate their idea.</p></div>
           : survey.status === 'closed' ? <p className="rounded-xl border border-[#333] p-6 text-gray-400">This survey is no longer accepting responses.</p>
-            : <form onSubmit={submit} className="space-y-5"><fieldset disabled={busy} className="space-y-5 disabled:opacity-60">
+            : <form onSubmit={submit} aria-busy={busy} className="space-y-5"><fieldset disabled={busy} className="space-y-5 disabled:opacity-60">
               {survey.questions.map((question, index) => <fieldset key={question.id} className="rounded-2xl border border-[#292929] bg-[#161616] p-5 sm:p-6"><legend className="max-w-full px-2 text-sm font-medium">{index + 1}. {question.title} {question.required ? <span className="text-[#f7d344]">*</span> : <span className="text-gray-500">(optional)</span>}</legend>
                 {question.type === 'text' ? <textarea aria-label={question.title} required={question.required} maxLength={1500} rows={4} value={answers[question.id] ?? ''} onChange={e => setAnswers({ ...answers, [question.id]: e.target.value })} className="w-full rounded-xl border border-[#333] bg-[#111] p-3 text-sm" placeholder="Your perspective…" />
                   : <div className={question.type === 'rating' ? 'grid grid-cols-5 gap-2' : 'space-y-2'}>{(question.type === 'rating' ? ['1', '2', '3', '4', '5'] : question.options).map((option, i) => {

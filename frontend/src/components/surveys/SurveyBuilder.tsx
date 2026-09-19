@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, ArrowLeft } from 'lucide-react';
 import { surveyApi, surveyError } from '@/lib/surveys';
 import type { SurveyDraft, SurveyQuestion } from '@/types/surveys';
@@ -9,12 +9,14 @@ const field = 'w-full rounded-xl border border-[#333] bg-[#111] px-3 py-2.5 text
 const newQuestion = (index: number): SurveyQuestion => ({ id: `q${index + 1}`, title: '', type: 'choice', required: true, options: ['', ''] });
 
 export function SurveyBuilder({ onCancel, onPublished }: { onCancel: () => void; onPublished: (id: string) => void }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [draft, setDraft] = useState<SurveyDraft>({ title: '', description: '', anonymousAuthor: false,
     anonymousResponses: true, durationDays: 14, questions: [newQuestion(0)] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef<string | null>(null);
   const inFlight = useRef(false);
+  useEffect(() => { headingRef.current?.focus(); }, []);
 
   function updateQuestion(index: number, patch: Partial<SurveyQuestion>) {
     setDraft(old => ({ ...old, questions: old.questions.map((q, i) => i === index ? { ...q, ...patch } : q) }));
@@ -32,10 +34,10 @@ export function SurveyBuilder({ onCancel, onPublished }: { onCancel: () => void;
     finally { inFlight.current = false; setBusy(false); }
   }
 
-  return <form onSubmit={publish} className="mx-auto max-w-3xl space-y-6">
+  return <form onSubmit={publish} aria-busy={busy} className="mx-auto max-w-3xl space-y-6">
     <button type="button" onClick={onCancel} disabled={busy} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white"><ArrowLeft size={16} /> Back to surveys</button>
     <div><p className="text-xs font-semibold uppercase tracking-widest text-[#f7d344]">Ask your community</p>
-      <h2 className="mt-2 text-3xl font-semibold">Turn a question into evidence.</h2>
+      <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-3xl font-semibold outline-none">Turn a question into evidence.</h1>
       <p className="mt-2 text-sm text-gray-400">Publish a survey for everyone on MU One. Keep it focused and easy to answer.</p></div>
     <fieldset disabled={busy} className="space-y-6 disabled:opacity-60">
       <section className="space-y-4 rounded-2xl border border-[#292929] bg-[#161616] p-5 sm:p-6">

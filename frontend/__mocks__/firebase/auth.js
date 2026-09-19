@@ -7,11 +7,14 @@ const mockOnAuthStateChanged = jest.fn((auth, cb) => {
   cb(null);
   return () => {};
 });
+const mockSetPersistence = jest.fn().mockResolvedValue(undefined);
 
 module.exports = {
   signInWithPopup: mockSignInWithPopup,
   signOut: mockSignOut,
   onAuthStateChanged: mockOnAuthStateChanged,
+  setPersistence: mockSetPersistence,
+  browserLocalPersistence: { type: 'LOCAL' },
   GoogleAuthProvider: jest.fn().mockImplementation(() => ({
     addScope: jest.fn(),
   })),

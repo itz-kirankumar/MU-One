@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  getAuth,
+  GoogleAuthProvider,
+  setPersistence,
+} from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
@@ -22,6 +27,17 @@ const db = getFirestore(app, databaseId);
 const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
 
+// Make the user's Firebase session survive browser restarts. Firebase normally
+// chooses local persistence in a browser, but setting it explicitly prevents a
+// deployment or browser-default change from turning a returning visit into a
+// new sign-in. AuthContext waits for this promise before subscribing.
+const authPersistenceReady =
+  typeof window === 'undefined'
+    ? Promise.resolve()
+    : setPersistence(auth, browserLocalPersistence).catch((error: unknown) => {
+        console.warn('Firebase auth persistence unavailable:', error);
+      });
+
 const provider = new GoogleAuthProvider();
 // Full scopes for calendar, mail, and tasks — used for sign-in only.
 // Actual API calls are made server-side via Cloud Functions.
@@ -30,4 +46,4 @@ provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
 provider.addScope('https://www.googleapis.com/auth/gmail.send');
 provider.addScope('https://www.googleapis.com/auth/tasks');
 
-export { app, db, auth, functions, provider };
+export { app, db, auth, authPersistenceReady, functions, provider };

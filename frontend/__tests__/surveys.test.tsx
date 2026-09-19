@@ -31,15 +31,19 @@ beforeEach(() => {
 test('members discover surveys and open the response form', async () => {
   render(<SurveyHub />);
   expect(await screen.findByText('A better campus lunch')).toBeVisible();
+  expect(screen.getByRole('tab', { name: 'Explore surveys' })).toHaveAttribute('aria-selected', 'true');
   fireEvent.click(screen.getByRole('button', { name: /Take survey/ }));
   expect(await screen.findByText('Your response is anonymous to the creator')).toBeVisible();
+  expect(screen.getByRole('heading', { level: 1, name: survey.title })).toHaveFocus();
   expect(screen.getByRole('button', { name: 'Submit response' })).toBeVisible();
 });
 
 test('My surveys requests only the current member’s surveys', async () => {
   render(<SurveyHub />);
   await screen.findByText(survey.title);
-  fireEvent.click(screen.getByRole('button', { name: 'My surveys' }));
+  const exploreTab = screen.getByRole('tab', { name: 'Explore surveys' });
+  fireEvent.keyDown(exploreTab, { key: 'ArrowRight' });
+  expect(screen.getByRole('tab', { name: 'My surveys' })).toHaveFocus();
   await waitFor(() => expect(api.list).toHaveBeenCalledWith(true));
 });
 
@@ -100,6 +104,8 @@ test('shows private result counts and confirms closure before sending it', async
   expect(screen.getByText('Anonymous response 1')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Close survey' }));
   expect(api.close).not.toHaveBeenCalled();
+  expect(screen.getByRole('alertdialog')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Confirm close' })).toHaveFocus();
   fireEvent.click(screen.getByRole('button', { name: 'Confirm close' }));
   await waitFor(() => expect(api.close).toHaveBeenCalledWith(survey.id));
 });

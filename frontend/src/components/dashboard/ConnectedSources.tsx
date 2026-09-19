@@ -140,13 +140,13 @@ function SidebarSourceRow({
 
 export function ConnectedSources({ inSidebar = false, collapsed = false }: ConnectedSourcesProps) {
   const { syncStatus, dashboardData } = useDashboard();
-  const { profile } = useAuth();
+  const { googleConnected } = useAuth();
   const [disconnecting, setDisconnecting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [disconnectError, setDisconnectError] = useState('');
   const [disconnectSuccess, setDisconnectSuccess] = useState(false);
 
-  const isGoogleConnected = Boolean(profile?.googleConnection?.connected);
+  const isGoogleConnected = googleConnected;
   const hasCalendar = Boolean(
     dashboardData?.events?.length ||
     (dashboardData as Record<string, unknown> | null)?.deadlines ||

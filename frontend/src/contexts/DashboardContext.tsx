@@ -71,7 +71,8 @@ function normalizeHealthItem(
 
 function deriveSyncStatus(
   dashboardData: DashboardData | null,
-  profile: UserProfile | null
+  profile: UserProfile | null,
+  googleConnected: boolean
 ): SyncStatus | null {
   if (!dashboardData && !profile) return null;
 
@@ -101,7 +102,7 @@ function deriveSyncStatus(
   );
 
   // Check if Google account is connected
-  const isGoogleConnected = Boolean(profile?.googleConnection?.connected);
+  const isGoogleConnected = googleConnected;
   const deadlinesArr = (dashboardData as Record<string, unknown> | null)?.deadlines;
   const importantMailArr = (dashboardData as Record<string, unknown> | null)?.importantMail;
 
@@ -193,7 +194,7 @@ export const DashboardContext = createContext<DashboardContextValue>({
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
-  const { user, profile } = useAuth();
+  const { user, profile, googleConnected } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -290,11 +291,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const syncStatus = deriveSyncStatus(dashboardData, profile);
+  const syncStatus = deriveSyncStatus(dashboardData, profile, googleConnected);
 
   // 1. Auto-sync on window focus / tab visibility change (e.g. user added event or received email)
   useEffect(() => {
-    if (!user || !profile?.googleConnection?.connected) return;
+    if (!user || !googleConnected) return;
 
     function handleActivity() {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -312,11 +313,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', handleActivity);
       document.removeEventListener('visibilitychange', handleActivity);
     };
-  }, [user, profile?.googleConnection?.connected, triggerSync]);
+  }, [user, googleConnected, triggerSync]);
 
   // 2. Periodic background auto-sync every 2.5 minutes while the dashboard is open
   useEffect(() => {
-    if (!user || !profile?.googleConnection?.connected) return;
+    if (!user || !googleConnected) return;
 
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -328,11 +329,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }, 150_000);
 
     return () => clearInterval(interval);
-  }, [user, profile?.googleConnection?.connected, triggerSync]);
+  }, [user, googleConnected, triggerSync]);
 
   // 3. Initial mount check: auto-sync if data is missing or older than 3 minutes
   useEffect(() => {
-    if (!user || !profile?.googleConnection?.connected) return;
+    if (!user || !googleConnected) return;
     if (initialSyncDoneRef.current) return;
     initialSyncDoneRef.current = true;
 
@@ -347,7 +348,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [user, profile?.googleConnection?.connected, syncStatus?.lastSyncedAt, triggerSync]);
+  }, [user, googleConnected, syncStatus?.lastSyncedAt, triggerSync]);
 
   // Completed mail tracking (local storage + Firestore profile sync)
   const [completedMailIds, setCompletedMailIds] = useState<string[]>(() => {
