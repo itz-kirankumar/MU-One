@@ -4,7 +4,7 @@ import { requireMuDomain } from "../utils/domainCheck";
 import { getAccessToken } from "../auth/tokenStore";
 import { withBackoff } from "../utils/backoff";
 import { sanitizeEmailHtml, formatPlainTextToHtml } from "../utils/sanitizeEmailHtml";
-import { inferDueDate } from "../utils/mailParsing";
+import { extractMailDateText, inferDueDate } from "../utils/mailParsing";
 import { getDb } from "../utils/getDb";
 
 interface MailAttachmentInfo {
@@ -150,7 +150,7 @@ export const getFullMailMessage = onCall(async (request) => {
 
   const receivedAtDate = date ? new Date(date) : new Date();
   const validReceivedAt = isNaN(receivedAtDate.getTime()) ? new Date() : receivedAtDate;
-  const fullContent = subject + "\n" + (text || html || snippet || "");
+  const fullContent = [subject, extractMailDateText(payload), snippet].join("\n");
   const extractedDueDate = inferDueDate(fullContent, validReceivedAt);
 
   // If a due date is discovered from full mail body, save it to Firestore mailSignals

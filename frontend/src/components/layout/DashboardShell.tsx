@@ -9,6 +9,8 @@ import { StudentAiTools } from '@/components/dashboard/StudentAiTools';
 import { AiDayPrioritizer } from '@/components/dashboard/AiDayPrioritizer';
 import { VoiceCopilot } from '@/components/dashboard/VoiceCopilot';
 import { PitchWorkspace } from '@/components/dashboard/PitchWorkspace';
+import { SurveyHub } from '@/components/surveys/SurveyHub';
+import { TestmailLab } from '@/components/dashboard/TestmailLab';
 import { usePitchDrafts } from '@/hooks/usePitchDrafts';
 import { useAuth } from '@/contexts/AuthContext';
 import type { PitchDraft } from '@/types/pitch';
@@ -179,6 +181,10 @@ export function DashboardShell() {
                 {/* Row 6: Mail */}
                 <ImportantMail />
               </>
+            ) : activeTab === 'surveys' ? (
+              <SurveyHub key={user?.uid} />
+            ) : activeTab === 'email_qa' ? (
+              <TestmailLab />
             ) : activeTab === 'pitch' ? (
               <PitchWorkspace
                 draft={activePitchDraft}

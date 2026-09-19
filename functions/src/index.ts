@@ -28,3 +28,5 @@ export { createCalendarEvent } from "./actions/createCalendarEvent";
 export { sendMail } from "./actions/sendMail";
 export { getFullMailMessage } from "./actions/getFullMailMessage";
 export { researchMailTopic } from "./actions/researchMailTopic";
+export { surveyPortal } from "./surveys/portal";
+export { testmailPortal } from "./integrations/testmailPortal";

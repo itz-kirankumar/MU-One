@@ -83,6 +83,12 @@ service cloud.firestore {
       }
     }
 
+    // Surveys are shared through verified-member callable functions only.
+    // Direct reads would expose owner IDs or the private participation ledger.
+    match /surveys/{document=**} {
+      allow read, write: if false;
+    }
+
     // Deny all other paths explicitly
     match /{document=**} {
       allow read, write: if false;

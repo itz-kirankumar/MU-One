@@ -1,173 +1,111 @@
-/**
- * Mail Due Date & Status Utilities
- * Robust extraction of deadlines from subject, snippet, and full email body.
- */
-
-const MONTHS_MAP: Record<string, number> = {
+// Kept identical in the frontend fallback and Functions parser; parity-tested.
+const MAIL_MONTHS: Record<string, number> = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
   july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
   jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8,
   sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
 };
-const MONTH_NAMES = Object.keys(MONTHS_MAP).join('|');
 
 export function cleanTextForDateParsing(text: string): string {
   return text
-    .replace(/<https?:\/\/[^>]+>/gi, ' ')
-    .replace(/\[https?:\/\/[^\]]+\]/gi, ' ')
-    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>|<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<https?:\/\/[^>]+>|\[https?:\/\/[^\]]+\]|https?:\/\/\S+/gi, ' ')
+    .replace(/<\/?(?:sup|span|b|strong|em|i)\b[^>]*>/gi, '')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\[[^\]]*\]/g, ' ')
-    .replace(/[<>[\]()]/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ');
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, value: string) => {
+      const code = value[0].toLowerCase() === 'x' ? parseInt(value.slice(1), 16) : Number(value);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
+    })
+    .replace(/&(?:nbsp|ensp|emsp|thinsp);/gi, ' ')
+    .replace(/&(?:ndash|mdash);/gi, '-')
+    .replace(/&amp;/gi, '&')
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(/[<>\[\]()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function toIsoDateStr(y: number, m: number, d: number): string {
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+function parseMailDate(text: string, receivedAt: Date, referenceToday: Date): string | null {
+  const cleaned = cleanTextForDateParsing(text);
+  if (!cleaned || isNaN(receivedAt.getTime())) return null;
+  const months = Object.keys(MAIL_MONTHS).sort((a, b) => b.length - a.length).join('|');
+  const ordinal = '(?:st|nd|rd|th)?';
+  const year = '(?:[\\s,/-]+(\\d{4})(?!\\d|:))?';
+  const patterns = [
+    { kind: 'iso', regex: /(?<![\w./-])(\d{4})-(\d{1,2})-(\d{1,2})(?![\w/-])/gi },
+    { kind: 'day', regex: new RegExp('(?<!\\w)(\\d{1,2})' + ordinal + '(?:\\s+of\\s+|[-/\\s]+)(' + months + ')\\b\\.?' + year, 'gi') },
+    { kind: 'month', regex: new RegExp('\\b(' + months + ')\\b\\.?[-/\\s]+(\\d{1,2})' + ordinal + '\\b' + year, 'gi') },
+    { kind: 'numeric', regex: /(?<![\w./-])(\d{1,2})([-/.])(\d{1,2})(?:\2(\d{4}|\d{2}))?(?![\w/.-]|\d)/gi },
+    { kind: 'relative', regex: /\b(today|tomorrow|tonight)\b/gi },
+  ];
+  const matches: { kind: string; match: RegExpExecArray }[] = [];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.regex.exec(cleaned)) !== null) matches.push({ kind: pattern.kind, match });
+  }
+  matches.sort((a, b) => a.match.index - b.match.index || b.match[0].length - a.match[0].length);
+  const candidates: { date: string; explicit: boolean }[] = [];
+  const trigger = /\b(?:deadline|due|submit|submission|last\s+date|register\s+by|registration\s+(?:date|deadline|closes?|ends?)|apply\s+(?:by|before|on)|application\s+(?:deadline|closes?)|closes?|ends?|concludes?|by|before|until)\b/i;
+  let previousEnd = 0;
+  for (const { kind, match } of matches) {
+    if (match.index < previousEnd) continue;
+    // Do not let a trigger bind to another date beyond the first date it describes.
+    const prefix = cleaned.slice(Math.max(previousEnd, match.index - 100), match.index)
+      .split(/[.!?;](?:\s|$)/).pop() ?? '';
+    const suffix = cleaned.slice(match.index + match[0].length, match.index + match[0].length + 40);
+    const explicit = trigger.test(prefix) || (!match[0].endsWith('.') &&
+      /^\s*(?:is\s+(?:the\s+)?)?(?:deadline|due\s+date|last\s+date)\b/i.test(suffix));
+    previousEnd = match.index + match[0].length;
+    let day: number;
+    let month: number;
+    let explicitYear: string | undefined;
+    if (kind === 'relative') {
+      if (!explicit) continue;
+      const date = new Date(receivedAt);
+      if (match[1].toLowerCase() === 'tomorrow') date.setDate(date.getDate() + 1);
+      candidates.push({ date: mailDateIso(date), explicit });
+      continue;
+    } else if (kind === 'iso') {
+      explicitYear = match[1]; month = Number(match[2]); day = Number(match[3]);
+    } else if (kind === 'day') {
+      day = Number(match[1]); month = MAIL_MONTHS[match[2].toLowerCase()]; explicitYear = match[3];
+    } else if (kind === 'month') {
+      month = MAIL_MONTHS[match[1].toLowerCase()]; day = Number(match[2]); explicitYear = match[3];
+    } else {
+      day = Number(match[1]); month = Number(match[3]); explicitYear = match[4];
+      // Short hyphen/dot pairs can be team sizes or decimal numbers.
+      if (!explicitYear && match[2] !== '/' && day <= 12 && !explicit) continue;
+      // Unambiguous US numeric dates are accepted; ambiguous ones remain day-first.
+      if (month > 12 && day <= 12) [day, month] = [month, day];
+    }
+    const baseYear = receivedAt.getFullYear();
+    const years = explicitYear
+      ? [Number(explicitYear) + (explicitYear.length === 2 ? 2000 : 0)]
+      : [baseYear - 1, baseYear, baseYear + 1];
+    const validDates = years.map(y => new Date(y, month - 1, day))
+      .filter(d => d.getMonth() === month - 1 && d.getDate() === day);
+    if (!validDates.length) continue;
+    // Anchor year inference to receipt, not the day the user opens an old email.
+    validDates.sort((a, b) => Math.abs(a.getTime() - receivedAt.getTime()) - Math.abs(b.getTime() - receivedAt.getTime()));
+    candidates.push({ date: mailDateIso(validDates[0]), explicit });
+  }
+  const explicit = candidates.filter(c => c.explicit);
+  const dates = [...new Set((explicit.length ? explicit : candidates).map(c => c.date))].sort();
+  const today = mailDateIso(referenceToday);
+  return dates.find(date => date >= today) ?? dates[dates.length - 1] ?? null;
+}
+
+function mailDateIso(date: Date): string {
+  return String(date.getFullYear()) + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
 }
 
 export function toLocalDateIso(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return mailDateIso(date);
 }
 
-/**
- * Extracts a due date from email text (subject, snippet, or body).
- * Handles complex university formats like:
- *  - "Deadline to fill the FORM: 13 September, 11:59 PM"
- *  - "Please fill out this google form by 10 Sep if interested"
- *  - "The last registration date for the competition (independent application) is 20 Sep 2026."
- *  - "conclude on 15th Sept 2026, EOD"
- *  - "due today", "deadline tomorrow", "due 15-09-2026", "20/09/2026"
- */
-export function extractMailDueDate(
-  subject?: string,
-  bodyOrSnippet?: string,
-  receivedAt?: string,
-  referenceToday?: Date
-): string | null {
-  const text = `${subject || ''}\n${bodyOrSnippet || ''}`;
-  if (!text.trim()) return null;
-
-  const baseDate = receivedAt ? new Date(receivedAt) : new Date();
-  const validBase = isNaN(baseDate.getTime()) ? new Date() : baseDate;
-  const today = referenceToday ? new Date(referenceToday) : new Date();
-  const todayStr = toLocalDateIso(today);
-
-  const cleaned = cleanTextForDateParsing(text);
-  const lower = cleaned.toLowerCase();
-
-  const candidates: { date: string; match: string }[] = [];
-
-  const trigger =
-    '(?:deadline(?:\\s*:|\\s+is|\\s*-)?|due(?:\\s+date)?(?:\\s*:|\\s+is|\\s*-)?|submit(?:\\s+by|\\s+before|\\s+on|\\s+until|\\s+on\\s+or\\s+before)?|submission(?:\\s+deadline|\\s+date|\\s+by|\\s+before|\\s+on)?|last\\s+date(?:\\s+for|\\s+to|\\s+is|\\s*:)?|last\\s+registration\\s+date|registration\\s+date|registration\\s+deadline|registration\\s+closes?|registration\\s+ends?|register\\s+by|apply\\s+by|apply\\s+before|apply\\s+on|application\\s+deadline|application\\s+closes?|fill\\s+(?:out\\s+)?(?:the\\s+|this\\s+)?(?:google\\s+)?form\\s+by|form\\s+by|form\\s+closes?|form\\s+deadline|closes?(?:\\s+on|\\s+by)?|ends?(?:\\s+on|\\s+by)?|concludes?(?:\\s+on|\\s+by)?|\\bby\\b|\\bbefore\\b|\\buntil\\b)';
-
-  // Pattern 1: trigger ... Day Month [Year] or Day-Month / Day/Month
-  const p1 = new RegExp(
-    trigger + '([^\\n]{0,100}?)(\\b\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of\\s+|[-/\\s]+)(' + MONTH_NAMES + ')(?:[\\s,/-]+(\\d{4}))?\\b',
-    'gi'
-  );
-  let m: RegExpExecArray | null;
-  while ((m = p1.exec(cleaned)) !== null) {
-    const day = parseInt(m[2], 10);
-    const month = MONTHS_MAP[m[3].toLowerCase()];
-    let year = m[4] ? parseInt(m[4], 10) : validBase.getFullYear();
-    if (!m[4] && month < validBase.getMonth() + 1 - 2) {
-      year += 1;
-    }
-    if (month && day >= 1 && day <= 31) {
-      candidates.push({
-        date: toIsoDateStr(year, month, day),
-        match: m[0],
-      });
-    }
-  }
-
-  // Pattern 2: trigger ... Month Day [Year] or Month-Day
-  const p2 = new RegExp(
-    trigger + '([^\\n]{0,100}?)(' + MONTH_NAMES + ')[-/\\s]+(\\d{1,2})(?:st|nd|rd|th)?(?:[\\s,/-]+(\\d{4}))?\\b',
-    'gi'
-  );
-  while ((m = p2.exec(cleaned)) !== null) {
-    const month = MONTHS_MAP[m[2].toLowerCase()];
-    const day = parseInt(m[3], 10);
-    let year = m[4] ? parseInt(m[4], 10) : validBase.getFullYear();
-    if (!m[4] && month < validBase.getMonth() + 1 - 2) {
-      year += 1;
-    }
-    if (month && day >= 1 && day <= 31) {
-      candidates.push({
-        date: toIsoDateStr(year, month, day),
-        match: m[0],
-      });
-    }
-  }
-
-  // Pattern 3: trigger ... DD[-/]MM[-/]YYYY or trigger ... DD[-/]MM (DD Mon/MM without year)
-  const p3 = new RegExp(
-    trigger + '([^\\n]{0,100}?)(\\b\\d{1,2})[-/.](\\d{1,2})(?:[-/.](\\d{2,4}))?\\b',
-    'gi'
-  );
-  while ((m = p3.exec(cleaned)) !== null) {
-    const day = parseInt(m[2], 10);
-    const month = parseInt(m[3], 10);
-    let year = m[4] ? parseInt(m[4], 10) : validBase.getFullYear();
-    if (m[4] && year < 100) year += 2000;
-    if (!m[4] && month < validBase.getMonth() + 1 - 2) {
-      year += 1;
-    }
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      candidates.push({
-        date: toIsoDateStr(year, month, day),
-        match: m[0],
-      });
-    }
-  }
-
-  // Pattern 4: trigger ... YYYY-MM-DD
-  const p4 = new RegExp(
-    trigger + '([^\\n]{0,100}?)(\\d{4}-\\d{2}-\\d{2})\\b',
-    'gi'
-  );
-  while ((m = p4.exec(cleaned)) !== null) {
-    const d = new Date(m[2]);
-    if (!isNaN(d.getTime())) {
-      candidates.push({ date: m[2], match: m[0] });
-    }
-  }
-
-  // Relative dates: "due today", "due tomorrow"
-  if (candidates.length === 0) {
-    const relTrigger = /\b(due|deadline|submit|submission|last\s+date|apply|closes?|ends?)\b[^.\n]{0,50}\b(today|tomorrow|tonight)\b/i;
-    const relMatch = lower.match(relTrigger);
-    if (relMatch) {
-      const word = relMatch[2].toLowerCase();
-      if (word === 'today' || word === 'tonight') {
-        return toLocalDateIso(validBase);
-      }
-      if (word === 'tomorrow') {
-        const tom = new Date(validBase);
-        tom.setDate(tom.getDate() + 1);
-        return toLocalDateIso(tom);
-      }
-    }
-    return null;
-  }
-
-  // Deduplicate candidate dates
-  const uniqueDates = Array.from(new Set(candidates.map((c) => c.date))).sort();
-
-  // If any date is >= todayStr (active upcoming deadline), prioritize the earliest upcoming date
-  const upcoming = uniqueDates.filter((d) => d >= todayStr);
-  if (upcoming.length > 0) {
-    return upcoming[0];
-  }
-
-  // Otherwise, all dates are passed: pick the latest past date
-  return uniqueDates[uniqueDates.length - 1];
+export function extractMailDueDate(subject?: string, bodyOrSnippet?: string, receivedAt?: string, referenceToday: Date = new Date()): string | null {
+  const base = receivedAt ? new Date(receivedAt) : new Date();
+  return parseMailDate([subject, bodyOrSnippet].filter(Boolean).join("\n"), isNaN(base.getTime()) ? new Date() : base, referenceToday);
 }
 
 /**

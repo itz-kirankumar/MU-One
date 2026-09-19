@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
+  ClipboardList,
+  FlaskConical,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
@@ -24,6 +26,8 @@ import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
 
 export type SidebarTab =
   | 'dashboard'
+  | 'surveys'
+  | 'email_qa'
   | 'pitch'
   | 'placement'
   | 'competition'
@@ -110,6 +114,24 @@ export function Sidebar({
             }`}
           />
           {(!collapsed || isMobile) && <span>Dashboard</span>}
+        </button>
+        <button
+          title="Testmail Email QA"
+          aria-label="Testmail Email QA"
+          onClick={() => { handleTabClick('email_qa'); if (isMobile) onMobileClose(); }}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'email_qa' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+        >
+          <FlaskConical className={`h-4 w-4 flex-shrink-0 ${activeTab === 'email_qa' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+          {(!collapsed || isMobile) && <span>Email QA</span>}
+        </button>
+        <button
+          title="Community surveys"
+          aria-label="Community surveys"
+          onClick={() => { handleTabClick('surveys'); if (isMobile) onMobileClose(); }}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'surveys' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+        >
+          <ClipboardList className={`h-4 w-4 flex-shrink-0 ${activeTab === 'surveys' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+          {(!collapsed || isMobile) && <span>Surveys</span>}
         </button>
       </div>
 
