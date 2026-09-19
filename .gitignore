@@ -15,6 +15,7 @@ node_modules/
 .npm/
 
 # Next.js
+/.next/
 frontend/.next/
 frontend/out/
 frontend/node_modules/
