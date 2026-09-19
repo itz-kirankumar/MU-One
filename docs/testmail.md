@@ -18,6 +18,13 @@ The local API key is stored in ignored `functions/.secret.local`. To deploy:
 firebase functions:secrets:set TESTMAIL_API_KEY
 ```
 
-Configure `TESTMAIL_NAMESPACE` with the namespace shown in the Testmail console, and `TESTMAIL_ADMIN_EMAILS` as a comma-separated allowlist of MU accounts. Testmail requires the namespace for every inbox query; an API key alone is insufficient.
+Production parameters for project `mu-one-508502` are stored in `functions/.env.mu-one-508502`. The Testmail namespace is `kl2ai`, and access is allowlisted to `kiran.kumar2028@mastersunion.org`. Testmail requires the namespace for every inbox query; an API key alone is insufficient.
 
-Deploy with the normal Functions workflow after those values are configured. Testmail receives mail at `{namespace}.{tag}@inbox.testmail.app`; tags can be created on demand.
+Testmail receives mail at `{namespace}.{tag}@inbox.testmail.app`; tags can be created on demand.
+
+Firebase CLI discovery for this codebase can exceed its default 10-second window because the shared Functions entry point loads the Google SDK integrations. On PowerShell, deploy with:
+
+```powershell
+$env:FUNCTIONS_DISCOVERY_TIMEOUT='60'
+firebase deploy --only functions:testmailPortal --project mu-one-508502
+```
