@@ -20,12 +20,14 @@ import {
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
+  Mail,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
 
 export type SidebarTab =
   | 'dashboard'
+  | 'email'
   | 'surveys'
   | 'email_qa'
   | 'pitch'
@@ -114,6 +116,15 @@ export function Sidebar({
             }`}
           />
           {(!collapsed || isMobile) && <span>Dashboard</span>}
+        </button>
+        <button
+          title="Email Center"
+          aria-label="Email Center"
+          onClick={() => { handleTabClick('email'); if (isMobile) onMobileClose(); }}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'email' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+        >
+          <Mail className={`h-4 w-4 flex-shrink-0 ${activeTab === 'email' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+          {(!collapsed || isMobile) && <span>Email Center</span>}
         </button>
         <button
           title="Testmail Email QA"

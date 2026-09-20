@@ -1,7 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
 import type {
-  DashboardData,
   NormalizedEvent,
   GoogleTask,
 } from '@/types';
@@ -44,6 +43,14 @@ export interface CreateEventResult {
 export interface SendMailResult {
   success: boolean;
   messageId?: string;
+  messageIds?: string[];
+  sentCount?: number;
+}
+
+export interface OutgoingMailAttachment {
+  filename: string;
+  mimeType: string;
+  dataBase64: string;
 }
 
 export interface MailAttachmentInfo {
@@ -164,9 +171,12 @@ export async function createCalendarEvent(data: {
  * Send an email via Gmail.
  */
 export async function sendMail(data: {
-  to: string;
+  recipients: string[];
   subject: string;
   body: string;
+  html?: string;
+  attachments?: OutgoingMailAttachment[];
+  bulkMode?: boolean;
 }): Promise<SendMailResult> {
   const fn = httpsCallable<typeof data, SendMailResult>(functions, 'sendMail');
   const result = await fn(data);

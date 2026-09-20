@@ -5,7 +5,6 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  serverTimestamp,
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -14,6 +13,7 @@ import type {
   DashboardData,
   PersonalTask,
   WeeklyFocus,
+  MailWorkspace,
 } from '@/types';
 
 // ─── Real-time listeners ─────────────────────────────────────────────────────
@@ -181,4 +181,10 @@ export async function updateFocus(uid: string, text: string): Promise<void> {
 export async function updateCompletedMailIds(uid: string, completedMailIds: string[]): Promise<void> {
   const ref = doc(db, 'users', uid);
   await setDoc(ref, { completedMailIds, updatedAt: new Date().toISOString() }, { merge: true });
+}
+
+/** Save the user's mail labels, read state, and pins to their profile. */
+export async function updateMailWorkspace(uid: string, mailWorkspace: MailWorkspace): Promise<void> {
+  const ref = doc(db, 'users', uid);
+  await setDoc(ref, { mailWorkspace, updatedAt: new Date().toISOString() }, { merge: true });
 }

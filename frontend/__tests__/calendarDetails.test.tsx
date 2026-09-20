@@ -31,6 +31,12 @@ const futureEvent: NormalizedEvent = {
   endIso: `${futureIso}T16:00:00+05:30`,
 };
 
+const longDescription = 'Motivation and decision making helps students understand why customers choose products and how teams can turn those insights into stronger market propositions.';
+const longEvent: NormalizedEvent = {
+  ...currentEvent,
+  descriptionExcerpt: `Description: ${longDescription}\nCourse Name: Consumer Behaviour\nMode: offline\nVenue: Room C-204`,
+};
+
 const mockDashboard: { dashboardData: DashboardData; loading: boolean } = {
   dashboardData: { uid: 'test-user', events: [currentEvent, futureEvent] },
   loading: false,
@@ -56,19 +62,18 @@ test('keeps course name separate from session title without exposing faculty', (
 });
 
 test('event cards show the compact hierarchy and expand on request', () => {
-  render(<CalendarEventCard event={currentEvent} onAddTask={jest.fn()} />);
+  render(<CalendarEventCard event={longEvent} onAddTask={jest.fn()} />);
   expect(screen.getByText('Consumer Behaviour')).toBeVisible();
   expect(screen.getByText(currentEvent.title)).toBeVisible();
-  expect(screen.getByText('Motivation and decision making')).toBeVisible();
   expect(screen.getByText('In class')).toBeVisible();
   expect(screen.queryByText(/Prof\. Asha Rao/)).not.toBeInTheDocument();
   expect(screen.queryByText('Date')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Add to tasks' })).toBeVisible();
 
   fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
-  expect(screen.getByText('Date')).toBeVisible();
-  expect(screen.getByText('Calendar')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.queryByText('Date')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Show less' }).closest('p')).toHaveTextContent(longDescription);
 });
 
 test('calendar defaults to a compact month grid and saves the selected view', () => {
@@ -87,4 +92,6 @@ test('calendar defaults to a compact month grid and saves the selected view', ()
   expect(screen.getByRole('button', { name: 'timeline' })).toHaveAttribute('aria-pressed', 'true');
   expect(window.localStorage.getItem('muone.calendarView')).toBe('timeline');
   expect(screen.getByText(currentEvent.title)).toBeVisible();
+  expect(screen.getAllByTestId('timeline-event')[0]).not.toHaveClass('rounded-xl');
+  expect(screen.getAllByTestId('timeline-event')[0]).not.toHaveClass('bg-[#15140f]');
 });

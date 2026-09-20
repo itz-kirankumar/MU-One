@@ -5,6 +5,7 @@ import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CalendarEventCard } from '@/components/dashboard/CalendarEventCard';
+import { ExpandableText } from '@/components/dashboard/ExpandableText';
 import { getCalendarEventDetails } from '@/lib/calendarEventDetails';
 import type { NormalizedEvent } from '@/types';
 
@@ -79,11 +80,32 @@ function CalendarPill({ event, onSelect }: { event: NormalizedEvent; onSelect: (
   );
 }
 
+function TimelineEvent({ event }: { event: NormalizedEvent }) {
+  const details = getCalendarEventDetails(event);
+  return (
+    <article data-testid="timeline-event" className="min-w-0 border-b border-[#252525] pb-4 last:border-0 last:pb-0">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#d8bd4d]">{details.course}</p>
+      <h4 className="mt-1 text-sm font-semibold leading-5 text-white">{details.title}</h4>
+      <ExpandableText text={details.description} maxChars={150} className="mt-1.5 text-xs leading-5 text-gray-400" />
+      <p className="mt-2 text-[11px] text-gray-500">
+        <span className="text-gray-300">{details.time}</span>
+        <span aria-hidden="true"> · </span>{details.venue}
+        <span aria-hidden="true"> · </span>{details.venueLabel}
+      </p>
+      {(details.meetingLink || event.htmlLink) && <div className="mt-1.5 flex gap-3 text-[11px]">
+        {details.meetingLink && <a href={details.meetingLink} target="_blank" rel="noopener noreferrer" className="font-medium text-[#d8bd4d] hover:underline">Join session</a>}
+        {event.htmlLink && <a href={event.htmlLink} target="_blank" rel="noopener noreferrer" className="font-medium text-gray-400 hover:text-white hover:underline">Google Calendar</a>}
+      </div>}
+    </article>
+  );
+}
+
 export function AgendaList() {
   const { dashboardData, loading } = useDashboard();
   const [view, setView] = useState<CalendarView>('month');
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
+  const [sectionFilter, setSectionFilter] = useState('all');
 
   useEffect(() => {
     const saved = window.localStorage.getItem(VIEW_KEY);
@@ -92,13 +114,16 @@ export function AgendaList() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const events = useMemo(() => {
+  const allEvents = useMemo(() => {
     const primary = dashboardData?.calendarAvailability?.events ?? dashboardData?.events ?? [];
     const fallback = dashboardData?.events ?? (dashboardData as { agenda?: NormalizedEvent[] })?.agenda ?? [];
     const unique = new Map<string, NormalizedEvent>();
     [...primary, ...fallback].filter(event => !event.isDeadline).forEach((event, index) => unique.set(eventKey(event, index), event));
     return [...unique.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
   }, [dashboardData]);
+
+  const sections = useMemo(() => [...new Set(allEvents.map(event => event.sourceCalendarName || event.calendarName).filter((value): value is string => Boolean(value)))].sort(), [allEvents]);
+  const events = useMemo(() => sectionFilter === 'all' ? allEvents : allEvents.filter(event => (event.sourceCalendarName || event.calendarName) === sectionFilter), [allEvents, sectionFilter]);
 
   const grouped = useMemo(() => {
     const result = new Map<string, NormalizedEvent[]>();
@@ -138,6 +163,12 @@ export function AgendaList() {
           <button type="button" onClick={() => setSelectedDate(new Date())} title="Go to today" className="min-w-36 rounded-md px-2 py-1 text-sm font-semibold text-white hover:bg-[#202020]">{headerLabel(selectedDate, view)}</button>
           <button type="button" onClick={() => navigate(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><ChevronRight className="h-4 w-4" /></button>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        {sections.length > 1 && <label className="sr-only" htmlFor="calendar-section-filter">Section</label>}
+        {sections.length > 1 && <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); setSelectedEvent(null); }} className="h-9 max-w-48 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-[#f7d344]">
+          <option value="all">All sections</option>
+          {sections.map(section => <option key={section} value={section}>{section}</option>)}
+        </select>}
         <div className="inline-flex rounded-lg border border-[#303030] bg-[#0d0d0d] p-1" aria-label="Calendar view">
           {(['day', 'week', 'month', 'timeline'] as CalendarView[]).map(option => (
             <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} title={`${option[0].toUpperCase() + option.slice(1)} view · saves as default`} className={`h-7 rounded-md px-3 text-xs font-medium capitalize transition-colors ${view === option ? 'bg-[#302a15] text-[#f7d344]' : 'text-gray-400 hover:text-white'}`}>
@@ -145,12 +176,15 @@ export function AgendaList() {
             </button>
           ))}
         </div>
+        </div>
       </div>
 
       {loading ? (
         <div className="grid min-h-64 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#f7d344] border-t-transparent" /></div>
-      ) : events.length === 0 ? (
+      ) : allEvents.length === 0 ? (
         <EmptyState icon={Calendar} title="No calendar events" description="Calendar events will appear here once synced" />
+      ) : events.length === 0 ? (
+        <EmptyState icon={Calendar} title="No events for this section" description="Choose another section or view all sections." />
       ) : view === 'day' ? (
         <div className="p-3">
           {visibleEvents.length ? <div className="grid gap-2 md:grid-cols-2">{visibleEvents.map((event, index) => <CalendarEventCard key={eventKey(event, index)} event={event} />)}</div> : <p className="py-12 text-center text-xs text-gray-500">No events on this day.</p>}
@@ -171,8 +205,8 @@ export function AgendaList() {
                         <p className="mt-0.5 text-xs text-gray-400">{label.date}</p>
                       </div>
                       <span className="absolute left-[3.55rem] top-2 h-2.5 w-2.5 rounded-full border-2 border-[#131313] bg-[#f7d344] sm:left-[5.05rem]" aria-hidden="true" />
-                      <div className="min-w-0 space-y-2 pl-2 sm:grid sm:grid-cols-2 sm:gap-2 sm:space-y-0">
-                        {dayEvents.map((event, index) => <CalendarEventCard key={eventKey(event, index)} event={event} />)}
+                      <div className="min-w-0 space-y-4 pl-2">
+                        {dayEvents.map((event, index) => <TimelineEvent key={eventKey(event, index)} event={event} />)}
                       </div>
                     </section>
                   );

@@ -481,7 +481,7 @@ export async function executeAgentAction(
 
       case 'send_email': {
         const res = await sendMail({
-          to: params.to,
+          recipients: params.to.split(',').map((recipient: string) => recipient.trim()).filter(Boolean),
           subject: params.subject,
           body: params.body,
         });

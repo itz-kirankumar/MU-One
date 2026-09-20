@@ -17,6 +17,24 @@ export interface UserProfile {
   googleConnection?: GoogleConnection;
   createdAt?: string;
   lastLoginAt?: string;
+  mailWorkspace?: MailWorkspace;
+}
+
+export interface MailLabel {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface MailItemState {
+  read?: boolean;
+  pinned?: boolean;
+  labelIds?: string[];
+}
+
+export interface MailWorkspace {
+  labels: MailLabel[];
+  messages: Record<string, MailItemState>;
 }
 
 // ── Firestore sync structures ──────────────────────────────────────────────
