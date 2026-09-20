@@ -8,6 +8,7 @@ import {
   extractSubject,
   extractActivityType,
   isDeadlineEvent,
+  extractSectionNumber,
 } from "../utils/eventParsing";
 
 describe("extractDescriptionField", () => {
@@ -16,6 +17,15 @@ describe("extractDescriptionField", () => {
     expect(extractDescriptionField(description, ["Course Name", "Course", "Subject"])).toBe("Brand Strategy");
     expect(extractDescriptionField(description, ["Faculty", "Instructor"])).toBe("Prof. Mehta");
     expect(extractDescriptionField(description, ["Venue", "Room"])).toBe("C-204");
+  });
+});
+
+describe("extractSectionNumber", () => {
+  it("extracts only academic sections 1 through 10", () => {
+    expect(extractSectionNumber("Section 5 - Term 3 - PGPTBMYLC2")).toBe(5);
+    expect(extractSectionNumber("Consumer Behaviour", "Sec-10")).toBe(10);
+    expect(extractSectionNumber("Room 914", "Term 2")).toBeNull();
+    expect(extractSectionNumber("Section 11")).toBeNull();
   });
 });
 
@@ -129,6 +139,7 @@ describe("normalizeEvent", () => {
     expect(result.sourceCalendarName).toBe("My Calendar");
     expect(result.isAllDay).toBe(false);
     expect(result.htmlLink).toBe("https://calendar.google.com/event?eid=evt-001");
+    expect(result.sectionNumber).toBeNull();
   });
 
   it("extracts subject 'Corporate Finance' from description label", () => {
@@ -191,5 +202,14 @@ describe("normalizeEvent", () => {
       meetingLink: "https://meet.google.com/abc-defg-hij",
       sourceCalendarName: "Term 2",
     });
+  });
+
+  it("captures a section from an event description", () => {
+    const result = normalizeEvent(
+      { ...baseEvent, description: "Course Name: Consumer Behaviour\nSection 5 - Term 3 - PGPTBMYLC2" },
+      "Consumer Behaviour",
+      "shared-calendar"
+    );
+    expect(result.sectionNumber).toBe(5);
   });
 });

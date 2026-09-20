@@ -27,6 +27,8 @@ export interface NormalizedEvent {
   isDeadline: boolean;
   dateFormatted: string;
   timeFormatted: string;
+  sectionNumber: number | null;
+  sharedTimetable?: boolean;
 }
 
 function cleanDescription(description: string): string {
@@ -54,6 +56,15 @@ export function extractDescriptionField(
     new RegExp(`(?:^|\\n)\\s*(?:${escaped.join("|")})\\s*[:\\-]\\s*([^\\n|;]+)`, "i")
   );
   return match?.[1]?.trim() ?? "";
+}
+
+/** Extracts an academic section number while rejecting unrelated numbers. */
+export function extractSectionNumber(...values: string[]): number | null {
+  const text = values.filter(Boolean).join("\n");
+  const match = text.match(/\b(?:section|sec)\s*[-:#]?\s*(10|[1-9])\b/i);
+  if (!match) return null;
+  const section = Number(match[1]);
+  return section >= 1 && section <= 10 ? section : null;
 }
 
 function stringField(value: unknown): string {
@@ -132,6 +143,7 @@ export function normalizeEvent(
   const videoEntry = entryPoints.find((entry) => entry["entryPointType"] === "video");
   const meetingLink = stringField(event["hangoutLink"]) || stringField(videoEntry?.["uri"]);
   const isDeadline = isDeadlineEvent(title, calendarName, description);
+  const sectionNumber = extractSectionNumber(calendarName, title, description);
 
   const startDate = new Date(startIso);
   const dateFormatted = isNaN(startDate.getTime())
@@ -165,6 +177,7 @@ export function normalizeEvent(
     isDeadline,
     dateFormatted,
     timeFormatted,
+    sectionNumber,
   };
 }
 

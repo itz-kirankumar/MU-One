@@ -89,6 +89,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Sanitized institutional timetable events are readable by verified MU users.
+    // Cloud Functions are the only writer, so personal calendar data cannot be
+    // inserted by clients.
+    match /sharedCalendarEvents/{eventId} {
+      allow read: if isMuUser();
+      allow write: if false;
+    }
+
     // Deny all other paths explicitly
     match /{document=**} {
       allow read, write: if false;

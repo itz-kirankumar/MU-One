@@ -93,6 +93,9 @@ export interface NormalizedEvent {
   meetingLink?: string;
   description?: string;
   descriptionExcerpt?: string;
+  sectionNumber?: number | null;
+  sectionLabel?: string;
+  sharedTimetable?: boolean;
 }
 
 // ── Mail ───────────────────────────────────────────────────────────────────

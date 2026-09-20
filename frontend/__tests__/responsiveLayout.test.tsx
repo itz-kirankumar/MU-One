@@ -50,6 +50,7 @@ jest.mock('../src/lib/functions', () => ({
 
 jest.mock('../src/lib/firestore', () => ({
   subscribeToFocus: jest.fn(() => () => {}),
+  subscribeToSharedTimetable: jest.fn((_from: string, _to: string, callback: (events: unknown[]) => void) => { callback([]); return () => {}; }),
   updateFocus: jest.fn(),
   createPersonalTask: jest.fn(),
   updatePersonalTask: jest.fn(),

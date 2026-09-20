@@ -1,9 +1,11 @@
 import * as admin from "firebase-admin";
+import { createHash } from "node:crypto";
 import { google } from "googleapis";
 import { getAccessToken } from "../auth/tokenStore";
 import { normalizeEvent } from "../utils/eventParsing";
 import { withBackoff } from "../utils/backoff";
 import { getDb } from "../utils/getDb";
+import { isSharedCalendar, toPublicTimetableEvent } from "../utils/sharedTimetable";
 
 const HOLIDAY_CALENDAR_KEYWORDS = [
   "holiday",
@@ -16,6 +18,24 @@ interface SyncCalendarResult {
   calendarsRead: number;
   eventsNormalized: number;
   warnings: string[];
+}
+
+interface CalendarSource {
+  id: string;
+  summary: string;
+  primary: boolean;
+  accessRole: string;
+}
+
+function sharedEventId(calendarId: string, googleEventId: string): string {
+  return createHash("sha256").update(`${calendarId}|${googleEventId}`).digest("hex");
+}
+
+function publicTimetableRecord(event: ReturnType<typeof normalizeEvent>) {
+  return {
+    ...toPublicTimetableEvent(event),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
 }
 
 /**
@@ -45,11 +65,7 @@ export async function syncUserCalendar(
   let coverageComplete = true;
 
   // List all calendars
-  let calendarList: {
-    id: string;
-    summary: string;
-    primary: boolean;
-  }[] = [];
+  let calendarList: CalendarSource[] = [];
 
   try {
     const calListResponse = await withBackoff(() =>
@@ -66,6 +82,7 @@ export async function syncUserCalendar(
         id: item.id ?? "",
         summary: item.summary ?? "",
         primary: item.primary ?? false,
+        accessRole: item.accessRole ?? "",
       }))
       .filter((item) => item.id !== "");
   } catch (err: unknown) {
@@ -78,6 +95,8 @@ export async function syncUserCalendar(
   const seenICalUIDs = new Set<string>();
   const allNormalizedEvents: ReturnType<typeof normalizeEvent>[] = [];
   const busyOccurrences: ReturnType<typeof normalizeEvent>[] = [];
+  const sharedEvents = new Map<string, ReturnType<typeof normalizeEvent>>();
+  const removedSharedEventIds = new Set<string>();
 
   for (const cal of calendarList) {
     try {
@@ -87,6 +106,7 @@ export async function syncUserCalendar(
           timeMin: timeMin.toISOString(),
           timeMax: timeMax.toISOString(),
           singleEvents: true,
+          showDeleted: true,
           orderBy: "startTime",
           maxResults: 500,
         })
@@ -95,21 +115,28 @@ export async function syncUserCalendar(
       const events = eventsResponse.data.items ?? [];
       if (eventsResponse.data.nextPageToken) coverageComplete = false;
       for (const event of events) {
+        const googleEventId = event.id ?? "";
+        const publicId = googleEventId ? sharedEventId(cal.id, googleEventId) : "";
+        if (event.status === "cancelled") {
+          if (isSharedCalendar(cal) && publicId) removedSharedEventIds.add(publicId);
+          continue;
+        }
+        const normalized = normalizeEvent(event as Record<string, unknown>, cal.summary, cal.id);
+        normalized.sharedTimetable = Boolean(
+          isSharedCalendar(cal) && normalized.sectionNumber && !normalized.isDeadline
+        );
+        if (normalized.sharedTimetable && publicId) sharedEvents.set(publicId, normalized);
+
         // Repeated instances share iCalUID. Availability must include every busy
         // occurrence even though the display/legacy ledger de-duplicates by UID.
-        if (event.status !== 'cancelled' && event.transparency !== 'transparent') {
-          busyOccurrences.push(normalizeEvent(event as Record<string, unknown>, cal.summary, cal.id));
+        if (event.transparency !== 'transparent') {
+          busyOccurrences.push(normalized);
         }
         const iCalUID = event.iCalUID ?? "";
         if (!iCalUID || seenICalUIDs.has(iCalUID)) {
           continue;
         }
         seenICalUIDs.add(iCalUID);
-        const normalized = normalizeEvent(
-          event as Record<string, unknown>,
-          cal.summary,
-          cal.id
-        );
         allNormalizedEvents.push(normalized);
       }
     } catch (err: unknown) {
@@ -131,6 +158,25 @@ export async function syncUserCalendar(
         .collection("calendarEvents")
         .doc(event.iCalUID);
       batch.set(ref, { ...event, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    }
+    await batch.commit();
+  }
+
+  // Publish only sanitized events from shared, non-owned calendars. Personal
+  // primary calendars and personal secondary calendars never enter this ledger.
+  const sharedWrites = [...sharedEvents.entries()];
+  for (let i = 0; i < sharedWrites.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    for (const [id, event] of sharedWrites.slice(i, i + BATCH_SIZE)) {
+      batch.set(db.collection("sharedCalendarEvents").doc(id), publicTimetableRecord(event), { merge: true });
+    }
+    await batch.commit();
+  }
+  const sharedDeletes = [...removedSharedEventIds].filter(id => !sharedEvents.has(id));
+  for (let i = 0; i < sharedDeletes.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    for (const id of sharedDeletes.slice(i, i + BATCH_SIZE)) {
+      batch.delete(db.collection("sharedCalendarEvents").doc(id));
     }
     await batch.commit();
   }

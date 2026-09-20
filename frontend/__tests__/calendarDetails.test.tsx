@@ -21,6 +21,8 @@ const currentEvent: NormalizedEvent = {
   descriptionExcerpt: 'Description: Motivation and decision making\nCourse Name: Consumer Behaviour\nFaculty: Prof. Asha Rao\nMode: offline\nVenue: Room C-204',
   activityType: 'Session',
   htmlLink: 'https://calendar.google.com/event?eid=event-1',
+  sectionNumber: 5,
+  sharedTimetable: true,
 };
 
 const futureEvent: NormalizedEvent = {
@@ -44,6 +46,13 @@ const mockDashboard: { dashboardData: DashboardData; loading: boolean } = {
 
 jest.mock('../src/contexts/DashboardContext', () => ({
   useDashboard: () => mockDashboard,
+}));
+
+jest.mock('../src/lib/firestore', () => ({
+  subscribeToSharedTimetable: (_from: string, _to: string, callback: (events: NormalizedEvent[]) => void) => {
+    callback([]);
+    return jest.fn();
+  },
 }));
 
 test('keeps course name separate from session title without exposing faculty', () => {
@@ -94,4 +103,23 @@ test('calendar defaults to a compact month grid and saves the selected view', ()
   expect(screen.getByText(currentEvent.title)).toBeVisible();
   expect(screen.getAllByTestId('timeline-event')[0]).not.toHaveClass('rounded-xl');
   expect(screen.getAllByTestId('timeline-event')[0]).not.toHaveClass('bg-[#15140f]');
+});
+
+test('filters the shared timetable by subject and section and supports a custom range', () => {
+  window.localStorage.clear();
+  render(<AgendaList />);
+
+  expect(screen.getByLabelText('Subject')).toHaveValue('all');
+  expect(screen.getByLabelText('Section')).toHaveValue('all');
+  expect(screen.getByRole('option', { name: 'Section 10' })).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Consumer Behaviour' } });
+  fireEvent.change(screen.getByLabelText('Section'), { target: { value: '5' } });
+  expect(screen.getAllByText('Consumer Behaviour').length).toBeGreaterThan(0);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Custom range' }));
+  expect(screen.getByLabelText('Start')).toBeVisible();
+  expect(screen.getByLabelText('End')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Show range' }));
+  expect(window.localStorage.getItem('muone.calendarView')).toBe('range');
 });

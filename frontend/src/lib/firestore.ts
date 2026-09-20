@@ -5,7 +5,11 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  limit,
+  orderBy,
+  query,
   Unsubscribe,
+  where,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type {
@@ -14,6 +18,7 @@ import type {
   PersonalTask,
   WeeklyFocus,
   MailWorkspace,
+  NormalizedEvent,
 } from '@/types';
 
 // ─── Real-time listeners ─────────────────────────────────────────────────────
@@ -68,6 +73,30 @@ export function subscribeToDashboard(
       // same as "no dashboard yet", and callers must be able to tell them
       // apart in order to surface a real error to the student.
       onError?.(err);
+    }
+  );
+}
+
+/** Subscribe to sanitized section timetable events for a selected date range. */
+export function subscribeToSharedTimetable(
+  fromIso: string,
+  toIso: string,
+  cb: (events: NormalizedEvent[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const ref = query(
+    collection(db, 'sharedCalendarEvents'),
+    where('startIso', '>=', fromIso),
+    where('startIso', '<=', toIso),
+    orderBy('startIso', 'asc'),
+    limit(1000)
+  );
+  return onSnapshot(
+    ref,
+    snapshot => cb(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as NormalizedEvent))),
+    error => {
+      console.warn('Firestore shared timetable listener:', error.message);
+      onError?.(error);
     }
   );
 }
