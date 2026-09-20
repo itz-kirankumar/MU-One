@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { google } from "googleapis";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { validateTitle } from "../utils/inputValidation";
 import { getAccessToken } from "../auth/tokenStore";
 import { syncUserCalendar } from "../sync/syncUserCalendar";
@@ -21,7 +21,7 @@ const TIMEZONE = "Asia/Kolkata";
  * - Returns { eventId, htmlLink, title }
  */
 export const createCalendarEvent = onCall(async (request) => {
-  const uid = requireMuDomain(request);
+  const uid = await requirePlatformAccess(request);
 
   const {
     title: rawTitle,

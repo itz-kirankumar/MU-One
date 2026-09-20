@@ -12,6 +12,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'MU One | Student Command Center',
   description: "Masters' Union student portal — calendar, tasks, and mail in one place.",
+  icons: {
+    icon: '/logo-mu-one.png',
+    shortcut: '/logo-mu-one.png',
+    apple: '/logo-mu-one.png',
+  },
 };
 
 export default function RootLayout({

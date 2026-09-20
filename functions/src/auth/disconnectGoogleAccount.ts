@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { OAuth2Client } from "google-auth-library";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { decryptToken } from "../utils/encryption";
 import { getDb } from "../utils/getDb";
 
@@ -29,7 +29,7 @@ function buildOAuth2Client(): OAuth2Client {
  *  6. Clear dashboard/current
  */
 export const disconnectGoogleAccount = onCall(async (request) => {
-  const uid = requireMuDomain(request);
+  const uid = await requirePlatformAccess(request);
   const db = getDb();
 
   const userDoc = await db.collection("users").doc(uid).get();

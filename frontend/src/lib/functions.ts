@@ -80,7 +80,65 @@ export interface ResearchMailTopicResult {
   sources: Array<{ title: string; url: string }>;
 }
 
+export interface PlatformAccessStatus {
+  email: string;
+  isAdmin: boolean;
+  hasAccess: boolean;
+  waitlistStatus: 'waiting' | 'approved' | null;
+}
+
+export interface AccessEntry {
+  email: string;
+  displayName?: string;
+  status?: string;
+  joinedAt?: string | null;
+  grantedAt?: string | null;
+}
+
+export interface AccessListResult {
+  adminEmail: string;
+  granted: AccessEntry[];
+  waitlist: AccessEntry[];
+}
+
 // ─── Typed Cloud Function wrappers ───────────────────────────────────────────
+
+export async function getPlatformAccess(): Promise<PlatformAccessStatus> {
+  const fn = httpsCallable<{ action: 'status' }, PlatformAccessStatus>(functions, 'accessPortal');
+  const result = await fn({ action: 'status' });
+  return result.data;
+}
+
+/**
+ * Join the platform waitlist.
+ */
+export async function joinPlatformWaitlist(params?: {
+  program?: string;
+  section?: string;
+  requestedFeatures?: string;
+}): Promise<{ success: boolean; message: string; status: string }> {
+  const fn = httpsCallable<
+    { action: 'join'; program?: string; section?: string; requestedFeatures?: string },
+    { success: boolean; message: string; status: string }
+  >(functions, 'accessPortal');
+  
+  const result = await fn({ 
+    action: 'join',
+    ...params
+  });
+  return result.data;
+}
+
+export async function listPlatformAccess(): Promise<AccessListResult> {
+  const fn = httpsCallable<{ action: 'list' }, AccessListResult>(functions, 'accessPortal');
+  const result = await fn({ action: 'list' });
+  return result.data;
+}
+
+export async function updatePlatformAccess(action: 'grant' | 'revoke', email: string): Promise<void> {
+  const fn = httpsCallable<{ action: 'grant' | 'revoke'; email: string }, { success: boolean }>(functions, 'accessPortal');
+  await fn({ action, email });
+}
 
 /**
  * Trigger a full dashboard sync (calendar, gmail, tasks).

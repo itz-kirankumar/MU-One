@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { google } from "googleapis";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { getAccessToken } from "../auth/tokenStore";
 import { withBackoff } from "../utils/backoff";
 
@@ -116,7 +116,7 @@ function parseAttachments(raw: unknown): OutgoingAttachment[] {
 }
 
 export const sendMail = onCall({ timeoutSeconds: 180, memory: "512MiB" }, async (request) => {
-  const uid = requireMuDomain(request);
+  const uid = await requirePlatformAccess(request);
   const data = request.data as Record<string, unknown>;
   if (!Array.isArray(data.recipients) || !data.recipients.length) throw new HttpsError("invalid-argument", "recipients must be a non-empty array.");
   if (data.recipients.length > MAX_RECIPIENTS) throw new HttpsError("invalid-argument", `Cannot send to more than ${MAX_RECIPIENTS} recipients at once.`);

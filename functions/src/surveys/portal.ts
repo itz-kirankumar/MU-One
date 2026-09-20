@@ -1,5 +1,5 @@
 import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https';
-import { requireMuDomain } from '../utils/domainCheck';
+import { requireMuDomain, requirePlatformAccess } from '../utils/domainCheck';
 import { getDb } from '../utils/getDb';
 import { runSurveyAction, SurveyMember } from './service';
 
@@ -13,6 +13,7 @@ export function surveyMember(request: CallableRequest): SurveyMember {
 }
 
 export const surveyPortal = onCall({ region: 'us-central1', timeoutSeconds: 30 }, async request => {
+  await requirePlatformAccess(request);
   const member = surveyMember(request);
   return runSurveyAction(getDb(), member, request.data);
 });

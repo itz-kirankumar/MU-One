@@ -115,7 +115,7 @@ export function AgendaList() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
   const [subjectFilter, setSubjectFilter] = useState('all');
-  const [sectionFilter, setSectionFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('1');
   const [sharedEvents, setSharedEvents] = useState<NormalizedEvent[]>([]);
   const [sharedLoading, setSharedLoading] = useState(true);
   const [sharedError, setSharedError] = useState('');
@@ -146,26 +146,31 @@ export function AgendaList() {
       `${queryWindow.start}T00:00:00`,
       `${queryWindow.end}T23:59:59.999`,
       events => { setSharedEvents(events); setSharedError(''); setSharedLoading(false); },
-      () => { setSharedError('Shared timetable could not be loaded.'); setSharedLoading(false); }
+      (err) => { setSharedError(`Shared timetable could not be loaded: ${err.message}`); setSharedLoading(false); }
     );
   }, [queryWindow.end, queryWindow.start]);
 
-  const localSharedEvents = useMemo(() => {
+  const localEvents = useMemo(() => {
     const primary = dashboardData?.calendarAvailability?.events ?? dashboardData?.events ?? [];
     const fallback = dashboardData?.events ?? (dashboardData as { agenda?: NormalizedEvent[] })?.agenda ?? [];
-    return [...primary, ...fallback].filter(event => event.sharedTimetable && event.sectionNumber && !event.isDeadline);
+    return [...primary, ...fallback].filter(event => !event.isDeadline);
   }, [dashboardData]);
 
   const allEvents = useMemo(() => {
     const unique = new Map<string, NormalizedEvent>();
-    [...sharedEvents, ...localSharedEvents].forEach((event, index) => unique.set(eventKey(event, index), event));
+    [...sharedEvents, ...localEvents].forEach((event, index) => unique.set(eventKey(event, index), event));
     return [...unique.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
-  }, [localSharedEvents, sharedEvents]);
+  }, [localEvents, sharedEvents]);
 
   const subjects = useMemo(() => [...new Set(allEvents.map(eventSubject))].sort((a, b) => a.localeCompare(b)), [allEvents]);
   const events = useMemo(() => allEvents.filter(event => {
     if (subjectFilter !== 'all' && eventSubject(event) !== subjectFilter) return false;
-    if (sectionFilter !== 'all' && event.sectionNumber !== Number(sectionFilter)) return false;
+    
+    // If it's a shared section event, it must match the selected section
+    if (event.sectionNumber) {
+      if (sectionFilter === 'personal' || event.sectionNumber !== Number(sectionFilter)) return false;
+    }
+    
     return true;
   }), [allEvents, sectionFilter, subjectFilter]);
 
@@ -270,10 +275,10 @@ export function AgendaList() {
           </select>
           <label htmlFor="calendar-section-filter" className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Section</label>
           <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); setSelectedEvent(null); }} className="h-9 min-w-32 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-[#f7d344]">
-            <option value="all">All sections</option>
             {SECTIONS.map(section => <option key={section} value={section}>Section {section}</option>)}
+            <option value="personal">Personal only</option>
           </select>
-          <p className="ml-auto text-[10px] text-gray-600">Shared institutional calendars only</p>
+          <p className="ml-auto text-[10px] text-gray-600">Personal & Shared calendars</p>
         </div>
       </div>
 
@@ -281,7 +286,7 @@ export function AgendaList() {
       {(loading || sharedLoading) && allEvents.length === 0 ? (
         <div className="grid min-h-64 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#f7d344] border-t-transparent" /></div>
       ) : allEvents.length === 0 ? (
-        <EmptyState icon={Calendar} title="No shared section sessions" description="Shared Section 1–10 calendars will appear here after the next sync." />
+        <EmptyState icon={Calendar} title="No sessions" description="Personal and shared section calendars will appear here after the next sync." />
       ) : events.length === 0 ? (
         <EmptyState icon={Calendar} title="No sessions for these filters" description="Choose another subject, section, or date range." />
       ) : view === 'day' ? (

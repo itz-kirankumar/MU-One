@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { syncUserCalendar } from "./syncUserCalendar";
 import { syncUserMail } from "./syncUserMail";
 import { syncUserGoogleTasks } from "./syncUserGoogleTasks";
@@ -25,7 +25,7 @@ type SourceHealth = "ok" | "warning" | "error";
 export const syncDashboard = onCall(
   { timeoutSeconds: 300, secrets: [GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY, EXPLABS_API_KEY] },
   async (request) => {
-    const uid = requireMuDomain(request);
+    const uid = await requirePlatformAccess(request);
     const db = getDb();
     const isForce = Boolean(
       (request.data as Record<string, unknown> | undefined)?.force

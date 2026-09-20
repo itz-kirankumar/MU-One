@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { RefreshCw, CalendarPlus, Mail, Menu, Mic } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, CalendarPlus, Mail, Menu, Mic, ShieldCheck } from 'lucide-react';
 import { useSyncStatus } from '@/hooks/useSyncStatus';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MANUAL_COOLDOWN_MS = 15 * 1000; // 15s between manual force syncs
 
@@ -35,6 +37,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoiceCopilot }: TopBarProps) {
+  const { access } = useAuth();
   const { syncing, isAutoSyncing, lastSyncedAt, sourceHealth, triggerSync } = useSyncStatus();
   const [refreshing, setRefreshing] = useState(false);
   const [cooldownMsg, setCooldownMsg] = useState('');
@@ -101,6 +104,16 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
 
       {/* Right: Sync Status Log + Sync Button (Unified Pill) + Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {access?.isAdmin && (
+          <Link
+            href="/admin/access"
+            aria-label="Open access control"
+            className="flex items-center gap-1.5 rounded-md border border-[#3b341a] bg-[#211d0d] px-3 py-1.5 text-xs font-semibold text-[#f7d344] hover:bg-[#2b2510] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden lg:inline">Access</span>
+          </Link>
+        )}
         {/* Unified Sync Pill: Status Log & Sync Button paired side-by-side */}
         <div className="flex items-center rounded-lg border border-[#262626] bg-[#141414] px-2.5 py-1 text-xs gap-2 shadow-xs transition-colors hover:border-[#333]">
           {isSyncActive ? (

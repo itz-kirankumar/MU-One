@@ -11,31 +11,18 @@ import {
   ChevronRight,
   LogOut,
   X,
-  Briefcase,
-  Trophy,
-  Mic,
-  BookOpen,
-  Bot,
-  Sparkles,
+  Target,
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
   Mail,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
+import { Logo } from '@/components/ui/Logo';
 
-export type SidebarTab =
-  | 'dashboard'
-  | 'email'
-  | 'surveys'
-  | 'email_qa'
-  | 'pitch'
-  | 'placement'
-  | 'competition'
-  | 'speaker'
-  | 'case_study'
-  | 'copilot';
+export type SidebarTab = 'dashboard' | 'email' | 'surveys' | 'email_qa' | 'pitch' | 'admin';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -46,19 +33,18 @@ interface SidebarProps {
   onSelectTab?: (tab: SidebarTab) => void;
 }
 
-const AI_TOOLS: Array<{
+const STUDENT_TOOLS: Array<{
   id: SidebarTab;
   label: string;
-  shortLabel: string;
+  description: string;
   icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
 }> = [
-  { id: 'pitch', label: 'Pitch & Case Studio', shortLabel: 'Pitch', icon: Trophy, badge: 'STUDIO' },
-  { id: 'placement', label: 'Placement Intel', shortLabel: 'Placement', icon: Briefcase, badge: 'AI' },
-  { id: 'competition', label: 'Case Comp Radar', shortLabel: 'Compete', icon: Sparkles, badge: 'AI' },
-  { id: 'speaker', label: 'Speaker & CXO Prep', shortLabel: 'Speaker', icon: Mic, badge: 'AI' },
-  { id: 'case_study', label: 'Case Study Explainer', shortLabel: 'Cases', icon: BookOpen, badge: 'AI' },
-  { id: 'copilot', label: 'AI Student Copilot', shortLabel: 'Copilot', icon: Bot, badge: 'PRO' },
+  {
+    id: 'pitch',
+    label: 'Pitch Checkpoint',
+    description: 'Grade a deck against the brief before you submit',
+    icon: Target,
+  },
 ];
 
 export function Sidebar({
@@ -69,7 +55,7 @@ export function Sidebar({
   activeTab = 'dashboard',
   onSelectTab,
 }: SidebarProps) {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, access } = useAuth();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -144,23 +130,28 @@ export function Sidebar({
           <ClipboardList className={`h-4 w-4 flex-shrink-0 ${activeTab === 'surveys' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
           {(!collapsed || isMobile) && <span>Surveys</span>}
         </button>
+        {access?.isAdmin && (
+          <button
+            title="Access Control"
+            aria-label="Access Control"
+            onClick={() => { handleTabClick('admin'); if (isMobile) onMobileClose(); }}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'admin' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+          >
+            <Shield className={`h-4 w-4 flex-shrink-0 ${activeTab === 'admin' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+            {(!collapsed || isMobile) && <span>Access Control</span>}
+          </button>
+        )}
       </div>
 
-      {/* Dedicated AI Student Tools Section */}
+      {/* Student toolkit */}
       <div className="space-y-1">
         {(!collapsed || isMobile) && (
-          <div className="flex items-center justify-between px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            <span className="flex items-center gap-1 text-purple-400">
-              <Sparkles className="h-3 w-3" />
-              AI Tools
-            </span>
-            <span className="rounded bg-purple-900/40 text-purple-300 px-1.5 py-0.2 text-[9px] border border-purple-500/30">
-              Tavily
-            </span>
+          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+            Toolkit
           </div>
         )}
 
-        {AI_TOOLS.map((tool) => {
+        {STUDENT_TOOLS.map((tool) => {
           const ToolIcon = tool.icon;
           const isActive = activeTab === tool.id;
           return (
@@ -170,34 +161,16 @@ export function Sidebar({
                 handleTabClick(tool.id);
                 if (isMobile) onMobileClose();
               }}
-              title={tool.label}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+              title={tool.description}
+              aria-label={tool.label}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-gradient-to-r from-purple-950/40 to-indigo-950/40 text-white border border-purple-500/40 shadow-sm'
-                  : 'text-gray-400 hover:bg-[#141414] hover:text-gray-200'
+                  ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E] shadow-sm'
+                  : 'text-gray-400 hover:bg-[#141414] hover:text-white'
               }`}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <ToolIcon
-                  className={`h-4 w-4 flex-shrink-0 ${
-                    isActive ? 'text-purple-400' : 'text-gray-400'
-                  }`}
-                />
-                {(!collapsed || isMobile) && (
-                  <span className="truncate">{tool.label}</span>
-                )}
-              </div>
-              {(!collapsed || isMobile) && tool.badge && (
-                <span
-                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                    tool.badge === 'PRO'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'bg-purple-500/20 text-purple-300'
-                  }`}
-                >
-                  {tool.badge}
-                </span>
-              )}
+              <ToolIcon className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+              {(!collapsed || isMobile) && <span className="truncate">{tool.label}</span>}
             </button>
           );
         })}
@@ -232,12 +205,15 @@ export function Sidebar({
       {/* Logo + toggle */}
       <div className="flex h-14 items-center justify-between border-b border-[#1A1A1A] px-3">
         {!collapsed && (
-          <span className="text-sm font-bold tracking-tight text-white">
-            MU <span className="text-[#f7d344]">One</span>
+          <span className="flex items-center gap-1.5 text-sm font-bold tracking-tight text-white">
+            <Logo className="h-6 w-6 text-[#f7d344]" />
+            MU <span className="text-gray-400 font-medium">One</span>
           </span>
         )}
         {collapsed && (
-          <span className="mx-auto text-xs font-bold text-[#f7d344]">MU</span>
+          <div className="mx-auto">
+            <Logo className="h-6 w-6 text-[#f7d344]" />
+          </div>
         )}
         <button
           onClick={onToggle}
@@ -321,8 +297,9 @@ export function Sidebar({
           <div className="fixed inset-y-0 left-0 z-40 flex md:hidden">
             <div className="flex h-full flex-col border-r border-[#222] bg-[#0A0A0A] w-60">
               <div className="flex h-14 items-center justify-between border-b border-[#1A1A1A] px-3">
-                <span className="text-sm font-bold tracking-tight text-white">
-                  MU <span className="text-[#f7d344]">One</span>
+                <span className="flex items-center gap-1.5 text-sm font-bold tracking-tight text-white">
+                  <Logo className="h-6 w-6 text-[#f7d344]" />
+                  MU <span className="text-gray-400 font-medium">One</span>
                 </span>
                 <button
                   onClick={onMobileClose}

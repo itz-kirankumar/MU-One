@@ -1,12 +1,9 @@
 import 'server-only';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { ApiError } from '@/lib/server/apiError';
 
-export class ApiError extends Error {
-  constructor(public status: number, message: string, public code = 'REQUEST_FAILED') {
-    super(message);
-  }
-}
+export { ApiError };
 
 /** Verify signature, expiry, issuer and audience, then enforce the campus account policy. */
 export async function requireCampusUser(request: Request): Promise<string> {

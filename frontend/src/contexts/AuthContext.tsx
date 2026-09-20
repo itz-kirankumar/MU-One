@@ -13,6 +13,7 @@ import { auth, authPersistenceReady } from '@/lib/firebase';
 import { subscribeToUser } from '@/lib/firestore';
 import { signInWithGoogle, signOutUser, validateMuDomain } from '@/lib/auth';
 import type { UserProfile } from '@/types';
+import { getPlatformAccess, type PlatformAccessStatus } from '@/lib/functions';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -23,6 +24,9 @@ export interface AuthContextValue {
   profileLoading: boolean;
   googleConnected: boolean;
   authError: string | null;
+  access: PlatformAccessStatus | null;
+  accessLoading: boolean;
+  refreshAccess: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -34,6 +38,9 @@ export const AuthContext = createContext<AuthContextValue>({
   profileLoading: true,
   googleConnected: false,
   authError: null,
+  access: null,
+  accessLoading: true,
+  refreshAccess: async () => {},
   signIn: async () => {},
   signOut: async () => {},
 });
@@ -47,6 +54,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [cachedGoogleConnected, setCachedGoogleConnected] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [access, setAccess] = useState<PlatformAccessStatus | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+
+  const refreshAccess = useCallback(async () => {
+    if (!auth.currentUser) {
+      setAccess(null);
+      setAccessLoading(false);
+      return;
+    }
+    setAccessLoading(true);
+    try {
+      setAccess(await getPlatformAccess());
+    } catch (error) {
+      console.warn('Unable to verify platform access:', error);
+      setAccess({
+        email: auth.currentUser.email ?? '',
+        isAdmin: false,
+        hasAccess: false,
+        waitlistStatus: null,
+      });
+    } finally {
+      setAccessLoading(false);
+    }
+  }, []);
 
   // Firebase auth state listener
   useEffect(() => {
@@ -69,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (firebaseUser) {
+          setAccessLoading(true);
           setProfileLoading(true);
           try {
             setCachedGoogleConnected(
@@ -81,6 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setProfileLoading(false);
           setCachedGoogleConnected(false);
+          setAccess(null);
+          setAccessLoading(false);
         }
 
         setUser(firebaseUser);
@@ -95,11 +129,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (user) void refreshAccess();
+  }, [user, refreshAccess]);
+
   // Firestore profile listener
   useEffect(() => {
-    if (!user) {
+    if (!user || accessLoading || !access?.hasAccess) {
       setProfile(null);
-      setProfileLoading(false);
+      if (!accessLoading) setProfileLoading(false);
       return;
     }
 
@@ -120,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       () => setProfileLoading(false)
     );
     return () => unsubProfile();
-  }, [user]);
+  }, [user, access, accessLoading]);
 
   const googleConnected =
     profile?.googleConnection?.connected === true ||
@@ -141,6 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOutUser();
     setUser(null);
     setProfile(null);
+    setAccess(null);
   }, []);
 
   return (
@@ -152,6 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileLoading,
         googleConnected,
         authError,
+        access,
+        accessLoading,
+        refreshAccess,
         signIn,
         signOut,
       }}

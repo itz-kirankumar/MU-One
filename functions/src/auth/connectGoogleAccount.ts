@@ -12,6 +12,7 @@ import {
   TOKEN_ENCRYPTION_KEY,
 } from "../config/params";
 import { buildDashboardRedirect } from "./oauthRedirect";
+import { PLATFORM_ADMIN_EMAIL, requirePlatformAccess } from "../utils/domainCheck";
 
 const REQUIRED_SCOPES = [
   // Read/write: createCalendarEvent needs write access, so requesting
@@ -38,23 +39,9 @@ function buildOAuth2Client(): OAuth2Client {
  * The client redirects the user to this URL to begin the OAuth flow.
  */
 export const getGoogleAuthUrl = onCall({ secrets: [GOOGLE_CLIENT_SECRET] }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "Must be signed in to get auth URL."
-    );
-  }
-
-  const email = request.auth.token.email ?? "";
-  if (!email.toLowerCase().endsWith("@mastersunion.org")) {
-    throw new HttpsError(
-      "permission-denied",
-      "Access restricted to @mastersunion.org accounts."
-    );
-  }
+  const uid = await requirePlatformAccess(request);
 
   const oauth2Client = buildOAuth2Client();
-  const uid = request.auth.uid;
 
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
@@ -137,6 +124,16 @@ export const connectGoogleAccount = onRequest({
         buildDashboardRedirect(DASHBOARD_URL.value(), "error", "email_mismatch")
       );
       return;
+    }
+
+    if (firebaseEmail !== PLATFORM_ADMIN_EMAIL) {
+      const access = await getDb().collection("platformAccess").doc(firebaseEmail).get();
+      if (!access.exists || access.get("status") !== "granted") {
+        res.redirect(
+          buildDashboardRedirect(DASHBOARD_URL.value(), "error", "access_not_granted")
+        );
+        return;
+      }
     }
 
     const expiresAt = tokens.expiry_date

@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { google } from "googleapis";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { getAccessToken } from "../auth/tokenStore";
 import { withBackoff } from "../utils/backoff";
 import { getDb } from "../utils/getDb";
@@ -17,7 +17,7 @@ import { getDb } from "../utils/getDb";
  * - Returns { taskId, completed: true }
  */
 export const completeGoogleTask = onCall(async (request) => {
-  const uid = requireMuDomain(request);
+  const uid = await requirePlatformAccess(request);
 
   const { taskId: rawTaskId, taskListId: rawTaskListId } =
     request.data as Record<string, unknown>;

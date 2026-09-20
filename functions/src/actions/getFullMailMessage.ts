@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { google } from "googleapis";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { getAccessToken } from "../auth/tokenStore";
 import { withBackoff } from "../utils/backoff";
 import { sanitizeEmailHtml, formatPlainTextToHtml } from "../utils/sanitizeEmailHtml";
@@ -83,7 +83,7 @@ function extractEmailContent(payload: Record<string, unknown>): { html: string; 
  * - Returns { messageId, from, to, subject, date, body, formattedHtml, attachments, snippet }
  */
 export const getFullMailMessage = onCall(async (request) => {
-  const uid = requireMuDomain(request);
+  const uid = await requirePlatformAccess(request);
 
   const { messageId: rawMessageId } = request.data as Record<string, unknown>;
 

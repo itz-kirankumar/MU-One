@@ -5,6 +5,7 @@ import { syncUserMail } from "./syncUserMail";
 import { syncUserGoogleTasks } from "./syncUserGoogleTasks";
 import { getDb } from "../utils/getDb";
 import { EXPLABS_API_KEY, GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY } from "../config/params";
+import { PLATFORM_ADMIN_EMAIL } from "../utils/domainCheck";
 
 const MAX_USERS_PER_RUN = 50;
 const MAX_CONNECTED_USERS_SCAN = 250;
@@ -47,13 +48,30 @@ export const scheduledSyncAllUsers = onSchedule(
         .where("googleConnection.connected", "==", true)
         .limit(MAX_CONNECTED_USERS_SCAN)
         .get();
-      uids = snapshot.docs
+      const eligibleUsers = snapshot.docs
         .map(doc => {
           const lastSync = doc.get("googleConnection.lastSyncAt") as admin.firestore.Timestamp | null | undefined;
-          return { uid: doc.id, lastSyncMs: lastSync?.toMillis?.() ?? 0 };
+          return {
+            uid: doc.id,
+            email: String(doc.get("email") || "").trim().toLowerCase(),
+            lastSyncMs: lastSync?.toMillis?.() ?? 0,
+          };
         })
         .filter(user => user.lastSyncMs < cutoffTimestamp.toMillis())
-        .sort((a, b) => a.lastSyncMs - b.lastSyncMs)
+        .sort((a, b) => a.lastSyncMs - b.lastSyncMs);
+
+      const nonAdmin = eligibleUsers.filter(user => user.email && user.email !== PLATFORM_ADMIN_EMAIL);
+      const accessSnapshots = nonAdmin.length
+        ? await db.getAll(...nonAdmin.map(user => db.collection("platformAccess").doc(user.email)))
+        : [];
+      const grantedEmails = new Set(
+        accessSnapshots
+          .filter(access => access.exists && access.get("status") === "granted")
+          .map(access => access.id)
+      );
+
+      uids = eligibleUsers
+        .filter(user => user.email === PLATFORM_ADMIN_EMAIL || grantedEmails.has(user.email))
         .slice(0, MAX_USERS_PER_RUN)
         .map(user => user.uid);
     } catch (err: unknown) {

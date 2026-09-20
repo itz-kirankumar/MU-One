@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { tavily } from "@tavily/core";
 
 const TAVILY_API_KEY =
@@ -81,7 +81,7 @@ function classifyTopic(subject: string, body: string): {
  * Returns a structured dossier with summary, key points, questions, and sources.
  */
 export const researchMailTopic = onCall(async (request) => {
-  requireMuDomain(request);
+  await requirePlatformAccess(request);
 
   const { subject, body, snippet } = request.data as ResearchRequest;
 

@@ -9,9 +9,19 @@ service cloud.firestore {
         && request.auth.token.email.matches('.*@mastersunion\\.org$');
     }
 
+    // Private beta admission. The admin account is always admitted; every
+    // other account must have a server-managed allowlist document.
+    function hasPlatformAccess() {
+      return isMuUser()
+        && (
+          request.auth.token.email == 'kiran.kumar2028@mastersunion.org'
+          || exists(/databases/$(database)/documents/platformAccess/$(request.auth.token.email))
+        );
+    }
+
     // Helper: caller is the owner of this uid subtree
     function isOwner(uid) {
-      return isMuUser() && request.auth.uid == uid;
+      return hasPlatformAccess() && request.auth.uid == uid;
     }
 
     // Helper: valid personal task fields
@@ -93,8 +103,18 @@ service cloud.firestore {
     // Cloud Functions are the only writer, so personal calendar data cannot be
     // inserted by clients.
     match /sharedCalendarEvents/{eventId} {
-      allow read: if isMuUser();
+      allow read: if hasPlatformAccess();
       allow write: if false;
+    }
+
+    // Admission and waitlist records are available only through callable
+    // functions, where administrator checks and field validation are enforced.
+    match /platformAccess/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /platformWaitlist/{document=**} {
+      allow read, write: if false;
     }
 
     // Deny all other paths explicitly

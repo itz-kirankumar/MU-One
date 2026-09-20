@@ -1,15 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardProvider } from '@/contexts/DashboardContext';
 import { DashboardShell } from '@/components/layout/DashboardShell';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { WaitlistGate } from '@/components/access/WaitlistGate';
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, access, accessLoading } = useAuth();
   const router = useRouter();
+  const [isPreview, setIsPreview] = useState(false);
+
+  useEffect(() => {
+    const previewMode = new URLSearchParams(window.location.search).get('preview');
+    setIsPreview(previewMode === 'waitlist' || previewMode === 'waitlist_joined');
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -17,7 +24,7 @@ export default function DashboardPage() {
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  if (loading || (user && accessLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
         <LoadingSpinner size="lg" label="Loading dashboard…" />
@@ -32,6 +39,8 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  if (isPreview || !access?.hasAccess) return <WaitlistGate />;
 
   return (
     <DashboardProvider>

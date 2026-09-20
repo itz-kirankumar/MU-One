@@ -5,16 +5,14 @@ import { Sidebar, SidebarTab } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { NewEventModal } from '@/components/dashboard/NewEventModal';
 import { ComposeMailModal } from '@/components/dashboard/ComposeMailModal';
-import { StudentAiTools } from '@/components/dashboard/StudentAiTools';
 import { AiDayPrioritizer } from '@/components/dashboard/AiDayPrioritizer';
 import { VoiceCopilot } from '@/components/dashboard/VoiceCopilot';
-import { PitchWorkspace } from '@/components/dashboard/PitchWorkspace';
+import { PitchCheckpoint } from '@/components/dashboard/PitchCheckpoint';
 import { SurveyHub } from '@/components/surveys/SurveyHub';
 import { TestmailLab } from '@/components/dashboard/TestmailLab';
 import { EmailCenter } from '@/components/dashboard/EmailCenter';
-import { usePitchDrafts } from '@/hooks/usePitchDrafts';
+import { AdminAccessControl } from '@/components/dashboard/AdminAccessControl';
 import { useAuth } from '@/contexts/AuthContext';
-import type { PitchDraft } from '@/types/pitch';
 
 // ─── Main grid sections ───────────────────────────────────────────────────────
 
@@ -41,34 +39,6 @@ export function DashboardShell() {
   const [composeMailOpen, setComposeMailOpen] = useState(false);
   const [voiceCopilotOpen, setVoiceCopilotOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SidebarTab>('dashboard');
-
-  const {
-    draft: pitchDraft,
-    drafts: pitchDrafts,
-    saveStatus: pitchSaveStatus,
-    saveError: pitchSaveError,
-    updateDraft: updatePitchDraft,
-    createDraft: createPitchDraft,
-    selectDraft: selectPitchDraft,
-  } = usePitchDrafts(user?.uid);
-
-  const activePitchDraft: PitchDraft = pitchDraft || {
-    id: 'draft-default',
-    input: {
-      mode: 'venture',
-      competition: '',
-      industry: '',
-      idea: '',
-      brief: '',
-      rubric: '',
-      round: '',
-      slideLimit: 5,
-      deadline: '',
-    },
-    taskIds: [],
-    bookedSlots: [],
-    updatedAt: new Date().toISOString(),
-  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0A0A0A]">
@@ -188,21 +158,10 @@ export function DashboardShell() {
               <SurveyHub key={user?.uid} />
             ) : activeTab === 'email_qa' ? (
               <TestmailLab />
-            ) : activeTab === 'pitch' ? (
-              <PitchWorkspace
-                draft={activePitchDraft}
-                onChange={updatePitchDraft}
-                saveStatus={pitchSaveStatus}
-                saveError={pitchSaveError}
-                onNewDraft={createPitchDraft}
-                drafts={pitchDrafts}
-                onSelectDraft={selectPitchDraft}
-              />
+            ) : activeTab === 'admin' ? (
+              <AdminAccessControl />
             ) : (
-              <StudentAiTools
-                activeTab={activeTab as any}
-                onSelectTab={(tab) => setActiveTab(tab)}
-              />
+              <PitchCheckpoint />
             )}
           </div>
         </main>

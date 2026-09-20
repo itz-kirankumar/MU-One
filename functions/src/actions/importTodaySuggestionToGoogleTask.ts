@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { google } from "googleapis";
-import { requireMuDomain } from "../utils/domainCheck";
+import { requirePlatformAccess } from "../utils/domainCheck";
 import { validateTitle, validateDate } from "../utils/inputValidation";
 import { getAccessToken } from "../auth/tokenStore";
 import { withBackoff } from "../utils/backoff";
@@ -22,7 +22,7 @@ type SourceType = "calendar" | "mail";
  * - Returns { taskId, taskListId, title } or { existing: true, taskId }
  */
 export const importTodaySuggestionToGoogleTask = onCall(async (request) => {
-  const uid = requireMuDomain(request);
+  const uid = await requirePlatformAccess(request);
 
   const {
     sourceType: rawSourceType,
