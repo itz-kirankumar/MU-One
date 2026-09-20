@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "googleConnection.connected", "order": "ASCENDING" },
+        { "fieldPath": "googleConnection.lastSyncAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "surveys",
       "queryScope": "COLLECTION",
       "fields": [
