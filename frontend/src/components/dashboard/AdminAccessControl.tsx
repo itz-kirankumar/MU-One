@@ -114,6 +114,35 @@ export function AdminAccessControl() {
               <Clock className="h-4 w-4 text-yellow-500" />
               Waitlist ({data?.waitlist.length ?? 0})
             </h2>
+            <button
+              onClick={() => {
+                if (!data) return;
+                const headers = ['Email', 'Name', 'Joined At', 'Program', 'Section', 'Requested Features'];
+                const rows = data.waitlist.map(u => [
+                  u.email,
+                  u.displayName || '',
+                  u.joinedAt || '',
+                  u.program || '',
+                  u.section || '',
+                  (u.requestedFeatures || '').replace(/"/g, '""') // escape quotes
+                ]);
+                const csvContent = [
+                  headers.join(','),
+                  ...rows.map(r => r.map(f => `"${f}"`).join(','))
+                ].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'waitlist.csv');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="rounded bg-[#333] px-2 py-1 text-xs text-white hover:bg-[#444]"
+            >
+              Export CSV
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
             {data?.waitlist.length === 0 ? (
@@ -121,25 +150,38 @@ export function AdminAccessControl() {
             ) : (
               <ul className="space-y-3">
                 {data?.waitlist.map((user) => (
-                  <li key={user.email} className="flex items-center justify-between rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-white">{user.displayName || user.email}</p>
-                      {user.displayName && <p className="truncate text-xs text-gray-400">{user.email}</p>}
+                  <li key={user.email} className="flex flex-col gap-2 rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-white">{user.displayName || user.email}</p>
+                        {user.displayName && <p className="truncate text-xs text-gray-400">{user.email}</p>}
+                        {(user.program || user.section) && (
+                          <div className="mt-1 flex gap-2 text-xs text-[#f7d344]">
+                            {user.program && <span>{user.program}</span>}
+                            {user.section && <span>Sec {user.section}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleGrant(user.email)}
+                        disabled={processing === user.email}
+                        className="ml-4 flex items-center gap-1.5 rounded-md bg-[#f7d344] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#ffe36c] disabled:opacity-50"
+                      >
+                        {processing === user.email ? (
+                          <LoadingSpinner size="sm" />
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            Approve
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleGrant(user.email)}
-                      disabled={processing === user.email}
-                      className="ml-4 flex items-center gap-1.5 rounded-md bg-[#f7d344] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#ffe36c] disabled:opacity-50"
-                    >
-                      {processing === user.email ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <>
-                          <Check className="h-3.5 w-3.5" />
-                          Approve
-                        </>
-                      )}
-                    </button>
+                    {user.requestedFeatures && (
+                      <div className="mt-2 rounded-md bg-[#111] p-2 text-xs text-gray-400">
+                        <strong>Feedback:</strong> {user.requestedFeatures}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

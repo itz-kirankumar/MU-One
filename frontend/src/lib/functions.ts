@@ -93,6 +93,9 @@ export interface AccessEntry {
   status?: string;
   joinedAt?: string | null;
   grantedAt?: string | null;
+  program?: string | null;
+  section?: string | null;
+  requestedFeatures?: string | null;
 }
 
 export interface AccessListResult {

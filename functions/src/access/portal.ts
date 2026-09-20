@@ -103,6 +103,9 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
         displayName: String(doc.get("displayName") || ""),
         status: String(doc.get("status") || "waiting"),
         joinedAt: doc.get("joinedAt")?.toDate?.()?.toISOString?.() || null,
+        program: doc.get("program") || null,
+        section: doc.get("section") || null,
+        requestedFeatures: doc.get("requestedFeatures") || null,
       })),
     };
   }
