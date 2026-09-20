@@ -7,6 +7,7 @@ import { getDb } from "../utils/getDb";
 import { EXPLABS_API_KEY, GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY } from "../config/params";
 
 const MAX_USERS_PER_RUN = 50;
+const MAX_CONNECTED_USERS_SCAN = 250;
 const SYNC_DAYS = 30;
 const MIN_SYNC_INTERVAL_MINUTES = 4;
 
@@ -37,30 +38,24 @@ export const scheduledSyncAllUsers = onSchedule(
     );
     const cutoffTimestamp = admin.firestore.Timestamp.fromDate(cutoffTime);
 
-    // Query users eligible for sync
-    // Users where connected=true AND (lastSyncAt is null OR lastSyncAt < cutoff)
-    // We run two queries and merge results since Firestore can't do OR on different fields
-
-    const query1 = db
-      .collection("users")
-      .where("googleConnection.connected", "==", true)
-      .where("googleConnection.lastSyncAt", "<", cutoffTimestamp)
-      .orderBy("googleConnection.lastSyncAt", "asc")
-      .limit(MAX_USERS_PER_RUN);
-
-    const query2 = db
-      .collection("users")
-      .where("googleConnection.connected", "==", true)
-      .where("googleConnection.lastSyncAt", "==", null)
-      .limit(MAX_USERS_PER_RUN);
-
     let uids: string[] = [];
     try {
-      const [snap1, snap2] = await Promise.all([query1.get(), query2.get()]);
-      const uidSet = new Set<string>();
-      snap1.docs.forEach((d) => uidSet.add(d.id));
-      snap2.docs.forEach((d) => uidSet.add(d.id));
-      uids = Array.from(uidSet).slice(0, MAX_USERS_PER_RUN);
+      // Filter the small connected-user set in memory. This avoids a fragile
+      // composite-index dependency and handles missing/null lastSyncAt values.
+      const snapshot = await db
+        .collection("users")
+        .where("googleConnection.connected", "==", true)
+        .limit(MAX_CONNECTED_USERS_SCAN)
+        .get();
+      uids = snapshot.docs
+        .map(doc => {
+          const lastSync = doc.get("googleConnection.lastSyncAt") as admin.firestore.Timestamp | null | undefined;
+          return { uid: doc.id, lastSyncMs: lastSync?.toMillis?.() ?? 0 };
+        })
+        .filter(user => user.lastSyncMs < cutoffTimestamp.toMillis())
+        .sort((a, b) => a.lastSyncMs - b.lastSyncMs)
+        .slice(0, MAX_USERS_PER_RUN)
+        .map(user => user.uid);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       // Log job-level error without sensitive data
