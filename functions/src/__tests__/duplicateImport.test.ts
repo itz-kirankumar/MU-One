@@ -57,9 +57,13 @@ jest.mock("googleapis", () => ({
 jest.mock("../auth/tokenStore", () => ({
   getAccessToken: jest.fn().mockResolvedValue("fake-access-token"),
 }));
-jest.mock("../utils/domainCheck", () => ({
-  requireMuDomain: jest.fn().mockReturnValue("test-uid"),
-}));
+jest.mock("../utils/domainCheck", () => {
+  const requireMuDomain = jest.fn().mockReturnValue("test-uid");
+  return {
+    requireMuDomain,
+    requirePlatformAccess: jest.fn((request: unknown) => Promise.resolve(requireMuDomain(request))),
+  };
+});
 jest.mock("firebase-functions/v2/https", () => ({
   onCall: (_opts: unknown, handler: unknown) => {
     if (typeof _opts === "function") return { handler: _opts };

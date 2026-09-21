@@ -9,11 +9,13 @@ import { ExpandableText } from '@/components/dashboard/ExpandableText';
 import { getCalendarEventDetails } from '@/lib/calendarEventDetails';
 import { subscribeToSharedTimetable } from '@/lib/firestore';
 import type { NormalizedEvent } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 type CalendarView = 'day' | 'week' | 'month' | 'timeline' | 'range';
 const VIEW_KEY = 'muone.calendarView';
+const SECTION_KEY = 'muone.calendarSection';
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const SECTIONS = Array.from({ length: 10 }, (_, index) => index + 1);
+const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
 
 function dateKey(date: Date): string {
   const year = date.getFullYear();
@@ -79,6 +81,17 @@ function eventSubject(event: NormalizedEvent): string {
   return (event.course || event.subject || getCalendarEventDetails(event).course || 'General').trim();
 }
 
+function eventSection(event: NormalizedEvent): string | null {
+  const direct = String(event.sectionCode || '').trim().toUpperCase();
+  if (/^[A-H]$/.test(direct)) return direct;
+
+  const label = String(event.sectionLabel || '').match(/\b(?:section|sec)\s*[-:#]?\s*([A-H]|[1-8])\b/i)?.[1];
+  if (label) return /^\d$/.test(label) ? String.fromCharCode(64 + Number(label)) : label.toUpperCase();
+
+  const legacy = Number(event.sectionNumber);
+  return legacy >= 1 && legacy <= 8 ? String.fromCharCode(64 + legacy) : null;
+}
+
 function CalendarPill({ event, onSelect }: { event: NormalizedEvent; onSelect: () => void }) {
   const details = getCalendarEventDetails(event);
   return (
@@ -95,7 +108,7 @@ function TimelineEvent({ event }: { event: NormalizedEvent }) {
     <article data-testid="timeline-event" className="min-w-0 border-b border-[#252525] pb-4 last:border-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#d8bd4d]">{details.course}</p>
-        {event.sectionNumber && <span className="text-[10px] font-medium text-gray-500">Section {event.sectionNumber}</span>}
+        {eventSection(event) && <span className="text-[10px] font-medium text-gray-500">Section {eventSection(event)}</span>}
       </div>
       <h4 className="mt-1 text-sm font-semibold leading-5 text-white">{details.title}</h4>
       <ExpandableText text={details.description} maxChars={150} className="mt-1.5 text-xs leading-5 text-gray-400" />
@@ -110,12 +123,13 @@ function TimelineEvent({ event }: { event: NormalizedEvent }) {
 
 export function AgendaList() {
   const { dashboardData, loading } = useDashboard();
+  const { access } = useAuth();
   const today = useMemo(() => new Date(), []);
   const [view, setView] = useState<CalendarView>('month');
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
   const [subjectFilter, setSubjectFilter] = useState('all');
-  const [sectionFilter, setSectionFilter] = useState('1');
+  const [sectionFilter, setSectionFilter] = useState('all');
   const [sharedEvents, setSharedEvents] = useState<NormalizedEvent[]>([]);
   const [sharedLoading, setSharedLoading] = useState(true);
   const [sharedError, setSharedError] = useState('');
@@ -132,6 +146,14 @@ export function AgendaList() {
     const timer = window.setTimeout(() => setView(saved as CalendarView), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(SECTION_KEY)?.toUpperCase() || '';
+    const profileSection = String(access?.section || '').toUpperCase();
+    const preferred = /^[A-H]$/.test(saved) ? saved : (/^[A-H]$/.test(profileSection) ? profileSection : 'all');
+    const timer = window.setTimeout(() => setSectionFilter(preferred), 0);
+    return () => window.clearTimeout(timer);
+  }, [access?.section]);
 
   const days = useMemo(() => calendarDays(selectedDate, view), [selectedDate, view]);
   const queryWindow = useMemo(() => {
@@ -167,8 +189,9 @@ export function AgendaList() {
     if (subjectFilter !== 'all' && eventSubject(event) !== subjectFilter) return false;
     
     // If it's a shared section event, it must match the selected section
-    if (event.sectionNumber) {
-      if (sectionFilter === 'personal' || event.sectionNumber !== Number(sectionFilter)) return false;
+    const section = eventSection(event);
+    if (section) {
+      if (sectionFilter === 'personal' || (sectionFilter !== 'all' && section !== sectionFilter)) return false;
     }
     
     return true;
@@ -274,7 +297,8 @@ export function AgendaList() {
             {subjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
           </select>
           <label htmlFor="calendar-section-filter" className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Section</label>
-          <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); setSelectedEvent(null); }} className="h-9 min-w-32 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-[#f7d344]">
+          <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); window.localStorage.setItem(SECTION_KEY, event.target.value); setSelectedEvent(null); }} className="h-9 min-w-32 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-[#f7d344]">
+            <option value="all">All sections</option>
             {SECTIONS.map(section => <option key={section} value={section}>Section {section}</option>)}
             <option value="personal">Personal only</option>
           </select>

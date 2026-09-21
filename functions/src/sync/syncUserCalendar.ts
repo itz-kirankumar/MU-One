@@ -123,7 +123,7 @@ export async function syncUserCalendar(
         }
         const normalized = normalizeEvent(event as Record<string, unknown>, cal.summary, cal.id);
         normalized.sharedTimetable = Boolean(
-          isSharedCalendar(cal) && normalized.sectionNumber && !normalized.isDeadline
+          isSharedCalendar(cal) && normalized.sectionCode && !normalized.isDeadline
         );
         if (normalized.sharedTimetable && publicId) sharedEvents.set(publicId, normalized);
 

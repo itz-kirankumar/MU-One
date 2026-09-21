@@ -35,11 +35,12 @@ describe("shared timetable privacy", () => {
       dateFormatted: "22 Sep 2026",
       timeFormatted: "9:00 AM",
       sectionNumber: 5,
+      sectionCode: "E",
       sharedTimetable: true,
     } satisfies NormalizedEvent;
 
     const published = toPublicTimetableEvent(event);
-    expect(published).toMatchObject({ subject: "Consumer Behaviour", sectionLabel: "Section 5" });
+    expect(published).toMatchObject({ subject: "Consumer Behaviour", sectionCode: "E", sectionLabel: "Section E" });
     expect(published).not.toHaveProperty("sourceCalendarId");
     expect(published).not.toHaveProperty("faculty");
     expect(published).not.toHaveProperty("organizerName");

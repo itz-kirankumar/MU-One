@@ -111,10 +111,11 @@ test('filters the shared timetable by subject and section and supports a custom 
 
   expect(screen.getByLabelText('Subject')).toHaveValue('all');
   expect(screen.getByLabelText('Section')).toHaveValue('all');
-  expect(screen.getByRole('option', { name: 'Section 10' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Section H' })).toBeInTheDocument();
+  expect(screen.queryByRole('option', { name: 'Section 9' })).not.toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Consumer Behaviour' } });
-  fireEvent.change(screen.getByLabelText('Section'), { target: { value: '5' } });
+  fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'E' } });
   expect(screen.getAllByText('Consumer Behaviour').length).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole('button', { name: 'Custom range' }));

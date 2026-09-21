@@ -85,6 +85,8 @@ export interface PlatformAccessStatus {
   isAdmin: boolean;
   hasAccess: boolean;
   waitlistStatus: 'waiting' | 'approved' | null;
+  program?: string | null;
+  section?: string | null;
 }
 
 export interface AccessEntry {

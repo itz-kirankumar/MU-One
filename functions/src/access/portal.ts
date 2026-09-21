@@ -36,11 +36,14 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
       isAdmin ? Promise.resolve(null) : db.collection("platformAccess").doc(callerEmail).get(),
       db.collection("platformWaitlist").doc(callerEmail).get(),
     ]);
+    const ownWaitlist = waitlist?.exists ? waitlist : null;
     return {
       email: callerEmail,
       isAdmin,
       hasAccess: isAdmin || Boolean(access?.exists && access.get("status") === "granted"),
-      waitlistStatus: waitlist?.exists ? String(waitlist.get("status") || "waiting") : null,
+      waitlistStatus: ownWaitlist ? String(ownWaitlist.get("status") || "waiting") : null,
+      program: ownWaitlist ? String(ownWaitlist.get("program") || "") : null,
+      section: ownWaitlist ? String(ownWaitlist.get("section") || "").toUpperCase() : null,
     };
   }
 

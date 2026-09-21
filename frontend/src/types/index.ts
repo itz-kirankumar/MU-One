@@ -94,6 +94,7 @@ export interface NormalizedEvent {
   description?: string;
   descriptionExcerpt?: string;
   sectionNumber?: number | null;
+  sectionCode?: string | null;
   sectionLabel?: string;
   sharedTimetable?: boolean;
 }

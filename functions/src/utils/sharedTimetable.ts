@@ -21,7 +21,8 @@ export function toPublicTimetableEvent(event: NormalizedEvent) {
     ...safeEvent,
     subject: event.course || event.subject || "General",
     course: event.course || event.subject || "General",
-    sectionLabel: `Section ${event.sectionNumber}`,
+    sectionCode: event.sectionCode,
+    sectionLabel: `Section ${event.sectionCode}`,
     sharedTimetable: true,
   };
 }

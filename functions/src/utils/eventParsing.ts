@@ -28,6 +28,7 @@ export interface NormalizedEvent {
   dateFormatted: string;
   timeFormatted: string;
   sectionNumber: number | null;
+  sectionCode: string | null;
   sharedTimetable?: boolean;
 }
 
@@ -58,13 +59,26 @@ export function extractDescriptionField(
   return match?.[1]?.trim() ?? "";
 }
 
-/** Extracts an academic section number while rejecting unrelated numbers. */
-export function extractSectionNumber(...values: string[]): number | null {
+/**
+ * Extract the shared academic section. MU uses eight common sections (A-H)
+ * across programmes. Legacy numeric labels are mapped 1=A through 8=H so
+ * already-connected calendars continue to work while their source labels are
+ * being corrected.
+ */
+export function extractSectionCode(...values: string[]): string | null {
   const text = values.filter(Boolean).join("\n");
-  const match = text.match(/\b(?:section|sec)\s*[-:#]?\s*(10|[1-9])\b/i);
-  if (!match) return null;
-  const section = Number(match[1]);
-  return section >= 1 && section <= 10 ? section : null;
+  const letterMatch = text.match(/\b(?:section|sec)\s*[-:#]?\s*([A-H])\b/i);
+  if (letterMatch) return letterMatch[1].toUpperCase();
+
+  const numberMatch = text.match(/\b(?:section|sec)\s*[-:#]?\s*([1-8])\b/i);
+  if (!numberMatch) return null;
+  return String.fromCharCode(64 + Number(numberMatch[1]));
+}
+
+/** Legacy numeric representation retained for existing dashboard snapshots. */
+export function extractSectionNumber(...values: string[]): number | null {
+  const code = extractSectionCode(...values);
+  return code ? code.charCodeAt(0) - 64 : null;
 }
 
 function stringField(value: unknown): string {
@@ -143,7 +157,8 @@ export function normalizeEvent(
   const videoEntry = entryPoints.find((entry) => entry["entryPointType"] === "video");
   const meetingLink = stringField(event["hangoutLink"]) || stringField(videoEntry?.["uri"]);
   const isDeadline = isDeadlineEvent(title, calendarName, description);
-  const sectionNumber = extractSectionNumber(calendarName, title, description);
+  const sectionCode = extractSectionCode(calendarName, title, description);
+  const sectionNumber = sectionCode ? sectionCode.charCodeAt(0) - 64 : null;
 
   const startDate = new Date(startIso);
   const dateFormatted = isNaN(startDate.getTime())
@@ -178,6 +193,7 @@ export function normalizeEvent(
     dateFormatted,
     timeFormatted,
     sectionNumber,
+    sectionCode,
   };
 }
 

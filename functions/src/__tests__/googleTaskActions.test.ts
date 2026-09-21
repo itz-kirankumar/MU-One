@@ -71,9 +71,13 @@ jest.mock("../auth/tokenStore", () => ({
 }));
 
 // ── Mock domainCheck ─────────────────────────────────────────────────────────
-jest.mock("../utils/domainCheck", () => ({
-  requireMuDomain: jest.fn().mockReturnValue("test-uid"),
-}));
+jest.mock("../utils/domainCheck", () => {
+  const requireMuDomain = jest.fn().mockReturnValue("test-uid");
+  return {
+    requireMuDomain,
+    requirePlatformAccess: jest.fn((request: unknown) => Promise.resolve(requireMuDomain(request))),
+  };
+});
 
 // ── Mock sync ────────────────────────────────────────────────────────────────
 jest.mock("../sync/syncUserGoogleTasks", () => ({

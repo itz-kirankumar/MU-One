@@ -9,6 +9,7 @@ import {
   extractActivityType,
   isDeadlineEvent,
   extractSectionNumber,
+  extractSectionCode,
 } from "../utils/eventParsing";
 
 describe("extractDescriptionField", () => {
@@ -21,11 +22,12 @@ describe("extractDescriptionField", () => {
 });
 
 describe("extractSectionNumber", () => {
-  it("extracts only academic sections 1 through 10", () => {
+  it("maps the eight legacy numeric sections to A-H", () => {
     expect(extractSectionNumber("Section 5 - Term 3 - PGPTBMYLC2")).toBe(5);
-    expect(extractSectionNumber("Consumer Behaviour", "Sec-10")).toBe(10);
+    expect(extractSectionCode("Section 5 - Term 3 - PGPTBMYLC2")).toBe("E");
+    expect(extractSectionCode("Consumer Behaviour", "Sec-H")).toBe("H");
     expect(extractSectionNumber("Room 914", "Term 2")).toBeNull();
-    expect(extractSectionNumber("Section 11")).toBeNull();
+    expect(extractSectionCode("Section 9")).toBeNull();
   });
 });
 
@@ -211,5 +213,6 @@ describe("normalizeEvent", () => {
       "shared-calendar"
     );
     expect(result.sectionNumber).toBe(5);
+    expect(result.sectionCode).toBe("E");
   });
 });

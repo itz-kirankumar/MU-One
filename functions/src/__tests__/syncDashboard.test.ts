@@ -82,9 +82,13 @@ jest.mock("firebase-functions/v2/https", () => ({
 }));
 
 // ── Mock domainCheck ─────────────────────────────────────────────────────────
-jest.mock("../utils/domainCheck", () => ({
-  requireMuDomain: jest.fn().mockReturnValue("test-uid"),
-}));
+jest.mock("../utils/domainCheck", () => {
+  const requireMuDomain = jest.fn().mockReturnValue("test-uid");
+  return {
+    requireMuDomain,
+    requirePlatformAccess: jest.fn((request: unknown) => Promise.resolve(requireMuDomain(request))),
+  };
+});
 
 import { requireMuDomain } from "../utils/domainCheck";
 const { HttpsError } = require("firebase-functions/v2/https");
