@@ -67,7 +67,7 @@ export function DashboardShell() {
           className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
           id="main-content"
         >
-          <div className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+          <div className={`mx-auto px-4 py-6 space-y-6 ${activeTab === 'email' ? 'max-w-[1600px] w-full h-full' : 'max-w-6xl'}`}>
             {activeTab === 'dashboard' ? (
               <>
                 {error && /not found|NOT_FOUND/i.test(error) && (

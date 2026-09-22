@@ -111,15 +111,15 @@ export function EmailCenter({ onCompose }: EmailCenterProps) {
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[#252525] bg-[#131313]">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#252525] px-4 py-3">
+    <section className="flex flex-col h-[calc(100vh-130px)] overflow-hidden rounded-xl border border-[#252525] bg-[#0A0A0A]">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#252525] px-4 py-3 bg-[#131313]">
         <div><h1 className="text-base font-semibold text-white">Email Center</h1><p className="mt-0.5 text-xs text-gray-500">Organize MU mail with labels, pins and read status.</p></div>
         <button type="button" onClick={onCompose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#f7d344] px-4 text-xs font-semibold text-black hover:bg-[#ffe36c]"><PenLine className="h-3.5 w-3.5" />Compose</button>
       </header>
 
-      <div className="grid min-h-[600px] md:grid-cols-[190px_1fr]">
-        <aside className="border-b border-[#252525] p-3 md:border-b-0 md:border-r">
-          <div className="grid grid-cols-3 gap-1 md:block md:space-y-1">
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="hidden w-[220px] shrink-0 overflow-y-auto border-r border-[#252525] p-3 md:block custom-scrollbar">
+          <div className="space-y-1">
             {filterButton('inbox', 'Inbox', mails.filter(mail => !workspace.messages[mailId(mail)]?.read || workspace.messages[mailId(mail)]?.labelIds?.length).length)}
             {filterButton('pinned', 'Pinned', mails.filter(mail => workspace.messages[mailId(mail)]?.pinned).length)}
             {filterButton('all', 'All mail', mails.length)}
@@ -135,23 +135,47 @@ export function EmailCenter({ onCompose }: EmailCenterProps) {
           </div>
         </aside>
 
-        <div className="min-w-0">
-          <div className="border-b border-[#252525] p-3"><label className="relative block"><Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-600" /><span className="sr-only">Search mail</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search sender, subject or message" className="h-9 w-full rounded-lg border border-[#2d2d2d] bg-[#101010] pl-9 pr-3 text-xs text-white outline-none focus:border-[#f7d344]" /></label>{saveError && <p role="alert" className="mt-2 text-xs text-red-400">{saveError}</p>}</div>
-          <div className="divide-y divide-[#222]">
-            {loading ? <p className="p-8 text-center text-xs text-gray-500">Loading mail…</p> : visibleMails.length === 0 ? <div className="grid min-h-64 place-items-center px-4 text-center"><div><Inbox className="mx-auto h-7 w-7 text-gray-700" /><p className="mt-2 text-sm text-gray-400">No mail in this view</p></div></div> : visibleMails.map(mail => {
+        <div className="flex flex-1 flex-col min-w-0 bg-[#0F0F0F]">
+          <div className="shrink-0 border-b border-[#252525] p-2 bg-[#131313] flex items-center justify-between">
+            <label className="relative block w-full max-w-md"><Search className="pointer-events-none absolute left-3 top-2 h-4 w-4 text-gray-500" /><span className="sr-only">Search mail</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search mail" className="h-8 w-full rounded-md bg-[#222] pl-9 pr-3 text-xs text-white outline-none focus:bg-[#2a2a2a] focus:ring-1 focus:ring-[#f7d344]" /></label>
+            {saveError && <p role="alert" className="ml-4 text-xs text-red-400">{saveError}</p>}
+          </div>
+          
+          <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-[#1e1e1e]">
+            {loading ? <p className="p-8 text-center text-xs text-gray-500">Loading mail…</p> : visibleMails.length === 0 ? <div className="grid h-full place-items-center px-4 text-center"><div><Inbox className="mx-auto h-7 w-7 text-gray-700" /><p className="mt-2 text-sm text-gray-400">No mail in this view</p></div></div> : visibleMails.map(mail => {
               const id = mailId(mail);
               const state = workspace.messages[id] ?? {};
               const assigned = workspace.labels.filter(label => state.labelIds?.includes(label.id));
-              return <article key={id} className={`group px-3 py-3 transition-colors hover:bg-[#181818] ${state.read ? 'bg-[#101010] opacity-75' : 'bg-[#151515]'}`}>
-                <div className="flex items-start gap-2">
-                  <button type="button" onClick={() => patchMessage(id, { pinned: !state.pinned })} aria-label={state.pinned ? `Unpin ${mail.subject}` : `Pin ${mail.subject}`} className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${state.pinned ? 'text-[#f7d344]' : 'text-gray-600 hover:text-[#f7d344]'}`}><Pin className="h-3.5 w-3.5" fill={state.pinned ? 'currentColor' : 'none'} /></button>
-                  <button type="button" onClick={() => setSelectedMail(mail)} className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><div className="flex items-center justify-between gap-3"><span className={`truncate text-xs ${state.read ? 'text-gray-400' : 'font-semibold text-white'}`}>{sender(mail)}</span><span className="shrink-0 text-[10px] text-gray-600">{formatReceived(mail.receivedAt)}</span></div><h2 className={`mt-0.5 truncate text-sm ${state.read ? 'text-gray-400' : 'font-semibold text-gray-100'}`}>{mail.subject || '(No subject)'}</h2><p className="mt-0.5 line-clamp-1 text-xs text-gray-600">{mail.snippet}</p></button>
-                  <button type="button" onClick={() => patchMessage(id, { read: !state.read })} title={state.read ? 'Mark as unread' : 'Mark as read'} aria-label={state.read ? `Mark ${mail.subject} as unread` : `Mark ${mail.subject} as read`} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-[#222] hover:text-white">{state.read ? <Mail className="h-3.5 w-3.5" /> : <MailOpen className="h-3.5 w-3.5" />}</button>
+              
+              return <article key={id} onClick={() => setSelectedMail(mail)} className={`group flex items-center gap-3 px-3 py-2 transition-colors cursor-pointer ${state.read ? 'bg-[#0A0A0A] text-gray-400 hover:bg-[#121212]' : 'bg-[#151515] text-gray-100 font-medium hover:bg-[#1a1a1a]'}`}>
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { pinned: !state.pinned }); }} aria-label={state.pinned ? 'Unpin' : 'Pin'} className={`grid h-6 w-6 place-items-center rounded-md ${state.pinned ? 'text-[#f7d344] opacity-100' : 'text-gray-500 hover:text-[#f7d344]'}`}><Pin className="h-3.5 w-3.5" fill={state.pinned ? 'currentColor' : 'none'} /></button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { read: !state.read }); }} title={state.read ? 'Mark as unread' : 'Mark as read'} className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:text-white">{state.read ? <Mail className="h-3.5 w-3.5" /> : <MailOpen className="h-3.5 w-3.5" />}</button>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-10">
-                  {assigned.map(label => <button key={label.id} type="button" onClick={() => toggleLabel(id, label.id)} title={`Remove ${label.name}`} className="rounded-full border px-2 py-0.5 text-[10px]" style={{ color: label.color, borderColor: `${label.color}66`, backgroundColor: `${label.color}12` }}>{label.name} ×</button>)}
-                  <label className="inline-flex items-center gap-1 text-[10px] text-gray-600"><Tag className="h-3 w-3" /><span className="sr-only">Add label</span><select aria-label={`Add label to ${mail.subject}`} value="" onChange={event => { if (event.target.value) toggleLabel(id, event.target.value); }} className="h-6 cursor-pointer rounded-md border border-[#303030] bg-[#171717] px-1.5 text-[10px] text-gray-400 outline-none hover:text-white focus:border-[#f7d344]"><option value="">+ Label</option>{workspace.labels.filter(label => !state.labelIds?.includes(label.id)).map(label => <option key={label.id} value={label.id}>{label.name}</option>)}</select></label>
+                
+                {/* Sender */}
+                <div className="w-[140px] md:w-[180px] shrink-0 truncate text-[13px]">{sender(mail)}</div>
+                
+                {/* Subject & Snippet */}
+                <div className="flex-1 truncate text-[13px]">
+                  <span className={state.read ? 'text-gray-300' : 'text-white'}>{mail.subject || '(No subject)'}</span>
+                  <span className="mx-2 text-gray-600">-</span>
+                  <span className="text-gray-500">{mail.snippet}</span>
                 </div>
+                
+                {/* Labels & Tags (Hover) */}
+                <div className="hidden md:flex items-center gap-1.5 shrink-0">
+                  {assigned.map(label => <button key={label.id} type="button" onClick={(e) => { e.stopPropagation(); toggleLabel(id, label.id); }} title={`Remove ${label.name}`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap hover:opacity-75 transition-opacity" style={{ color: label.color, borderColor: `${label.color}44`, backgroundColor: `${label.color}11`, borderWidth: 1 }}>{label.name}</button>)}
+                  
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                    <select aria-label="Add label" value="" onClick={(e) => e.stopPropagation()} onChange={event => { if (event.target.value) toggleLabel(id, event.target.value); }} className="w-6 h-6 opacity-0 absolute cursor-pointer"><option value="">+ Label</option>{workspace.labels.filter(label => !state.labelIds?.includes(label.id)).map(label => <option key={label.id} value={label.id}>{label.name}</option>)}</select>
+                    <button type="button" className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:bg-[#2a2a2a] hover:text-white pointer-events-none"><Tag className="h-3.5 w-3.5" /></button>
+                  </div>
+                </div>
+                
+                {/* Date */}
+                <div className="w-[60px] shrink-0 text-right text-[11px] text-gray-500 group-hover:hidden md:group-hover:block">{formatReceived(mail.receivedAt)}</div>
               </article>;
             })}
           </div>
