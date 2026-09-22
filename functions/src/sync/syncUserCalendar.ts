@@ -1,11 +1,17 @@
 import * as admin from "firebase-admin";
-import { createHash } from "node:crypto";
 import { google } from "googleapis";
 import { getAccessToken } from "../auth/tokenStore";
 import { normalizeEvent } from "../utils/eventParsing";
 import { withBackoff } from "../utils/backoff";
 import { getDb } from "../utils/getDb";
-import { isSharedCalendar, toPublicTimetableEvent } from "../utils/sharedTimetable";
+import {
+  isSharedCalendar,
+  isSharedEventEligible,
+  toPublicTimetableEvent,
+  computeSessionFingerprint,
+  shouldOverwriteSession,
+  RawGoogleEvent,
+} from "../utils/sharedTimetable";
 
 const HOLIDAY_CALENDAR_KEYWORDS = [
   "holiday",
@@ -27,13 +33,12 @@ interface CalendarSource {
   accessRole: string;
 }
 
-function sharedEventId(calendarId: string, googleEventId: string): string {
-  return createHash("sha256").update(`${calendarId}|${googleEventId}`).digest("hex");
-}
-
-function publicTimetableRecord(event: ReturnType<typeof normalizeEvent>) {
+function publicTimetableRecord(
+  event: ReturnType<typeof normalizeEvent>,
+  sourceUpdateTime?: string
+) {
   return {
-    ...toPublicTimetableEvent(event),
+    ...toPublicTimetableEvent(event, sourceUpdateTime),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 }
@@ -44,8 +49,11 @@ function publicTimetableRecord(event: ReturnType<typeof normalizeEvent>) {
  * - Retrieves all calendars, skipping holiday calendars.
  * - Fetches events from the start of the previous month through now + syncDays
  *   so month views include recent calendar history.
- * - De-duplicates by iCalUID.
- * - Writes events to /users/{uid}/calendarEvents/{iCalUID}.
+ * - De-duplicates by iCalUID for personal calendar events.
+ * - Writes personal events to /users/{uid}/calendarEvents/{iCalUID}.
+ * - Filters, sanitizes, deduplicates (via SHA-256 fingerprint), and conflict-resolves
+ *   shared timetable events into /sharedCalendarEvents/{fingerprint}.
+ * - Safe Deletion Guard: Single-user cancellations/declines NEVER delete shared timetable events.
  * - Updates dashboard/current.agenda and dashboard/current.deadlines.
  */
 export async function syncUserCalendar(
@@ -63,6 +71,36 @@ export async function syncUserCalendar(
   const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const timeMax = new Date(now.getTime() + syncDays * 24 * 60 * 60 * 1000);
   let coverageComplete = true;
+
+  const db = getDb();
+  let fallbackSectionCode: string | null = null;
+  try {
+    const userDoc = await db.collection("users").doc(uid).get();
+    const email = userDoc.get("email");
+    fallbackSectionCode = userDoc.get("section");
+    if (!fallbackSectionCode && email) {
+      const waitlistDoc = await db.collection("platformWaitlist").doc(email).get();
+      if (waitlistDoc.exists) fallbackSectionCode = waitlistDoc.get("section");
+      if (!fallbackSectionCode) {
+        const accessDoc = await db.collection("platformAccess").doc(email).get();
+        if (accessDoc.exists) fallbackSectionCode = accessDoc.get("section");
+      }
+    }
+  } catch (err) {
+    // Ignore db read errors for fallback section
+  }
+
+  // Normalize fallback string (e.g. "A", "Section C", "Legacy 2") to a valid A-H char
+  let parsedFallback: string | null = null;
+  if (fallbackSectionCode) {
+    const directMatch = fallbackSectionCode.trim().toUpperCase().match(/^[A-H]$/);
+    if (directMatch) {
+      parsedFallback = directMatch[0];
+    } else {
+      const letterMatch = fallbackSectionCode.match(/\b([A-H])\b/i);
+      if (letterMatch) parsedFallback = letterMatch[1].toUpperCase();
+    }
+  }
 
   // List all calendars
   let calendarList: CalendarSource[] = [];
@@ -95,8 +133,10 @@ export async function syncUserCalendar(
   const seenICalUIDs = new Set<string>();
   const allNormalizedEvents: ReturnType<typeof normalizeEvent>[] = [];
   const busyOccurrences: ReturnType<typeof normalizeEvent>[] = [];
-  const sharedEvents = new Map<string, ReturnType<typeof normalizeEvent>>();
-  const removedSharedEventIds = new Set<string>();
+  const sharedEvents = new Map<
+    string,
+    { event: ReturnType<typeof normalizeEvent>; sourceUpdateTime: string }
+  >();
 
   for (const cal of calendarList) {
     try {
@@ -115,21 +155,53 @@ export async function syncUserCalendar(
       const events = eventsResponse.data.items ?? [];
       if (eventsResponse.data.nextPageToken) coverageComplete = false;
       for (const event of events) {
-        const googleEventId = event.id ?? "";
-        const publicId = googleEventId ? sharedEventId(cal.id, googleEventId) : "";
         if (event.status === "cancelled") {
-          if (isSharedCalendar(cal) && publicId) removedSharedEventIds.add(publicId);
+          // Cancellation safety guard: Individual attendee declines/cancellations
+          // must NEVER delete or mutate shared institutional timetable events.
           continue;
         }
+
         const normalized = normalizeEvent(event as Record<string, unknown>, cal.summary, cal.id);
-        normalized.sharedTimetable = Boolean(
-          isSharedCalendar(cal) && normalized.sectionCode && !normalized.isDeadline
+        
+        if (!normalized.sectionCode && parsedFallback) {
+          normalized.sectionCode = parsedFallback;
+          normalized.sectionNumber = parsedFallback.charCodeAt(0) - 64;
+        }
+
+        const sourceUpdateTime =
+          typeof event.updated === "string" ? event.updated : (normalized.sourceUpdateTime || "");
+        normalized.sourceUpdateTime = sourceUpdateTime;
+
+        const isEligible = isSharedEventEligible(
+          cal,
+          event as RawGoogleEvent,
+          normalized
         );
-        if (normalized.sharedTimetable && publicId) sharedEvents.set(publicId, normalized);
+        normalized.sharedTimetable = isEligible;
+
+        if (isEligible && normalized.sectionCode) {
+          const fingerprint = computeSessionFingerprint({
+            section: normalized.sectionCode,
+            course: normalized.course || normalized.subject || "General",
+            title: normalized.title,
+            startIso: normalized.startIso,
+            endIso: normalized.endIso,
+            venue: normalized.location || "",
+          });
+
+          // In-memory conflict resolution: keep the fresher session within this sync pass
+          const existingCandidate = sharedEvents.get(fingerprint);
+          if (
+            !existingCandidate ||
+            shouldOverwriteSession(existingCandidate.sourceUpdateTime, sourceUpdateTime)
+          ) {
+            sharedEvents.set(fingerprint, { event: normalized, sourceUpdateTime });
+          }
+        }
 
         // Repeated instances share iCalUID. Availability must include every busy
         // occurrence even though the display/legacy ledger de-duplicates by UID.
-        if (event.transparency !== 'transparent') {
+        if (event.transparency !== "transparent") {
           busyOccurrences.push(normalized);
         }
         const iCalUID = event.iCalUID ?? "";
@@ -145,8 +217,7 @@ export async function syncUserCalendar(
     }
   }
 
-  // Write to Firestore in batches of 500
-  const db = getDb();
+  // Write personal events to Firestore in batches of 500
   const BATCH_SIZE = 500;
   for (let i = 0; i < allNormalizedEvents.length; i += BATCH_SIZE) {
     const batch = db.batch();
@@ -162,23 +233,38 @@ export async function syncUserCalendar(
     await batch.commit();
   }
 
-  // Publish only sanitized events from shared, non-owned calendars. Personal
-  // primary calendars and personal secondary calendars never enter this ledger.
+  // Publish only sanitized events from shared, non-owned calendars.
+  // Conflict resolution: Inspect existing document sourceUpdateTime, overwrite only if incoming is fresher.
   const sharedWrites = [...sharedEvents.entries()];
   for (let i = 0; i < sharedWrites.length; i += BATCH_SIZE) {
     const batch = db.batch();
-    for (const [id, event] of sharedWrites.slice(i, i + BATCH_SIZE)) {
-      batch.set(db.collection("sharedCalendarEvents").doc(id), publicTimetableRecord(event), { merge: true });
+    const chunk = sharedWrites.slice(i, i + BATCH_SIZE);
+    let writesInBatch = 0;
+
+    for (const [fingerprint, { event, sourceUpdateTime }] of chunk) {
+      const docRef = db.collection("sharedCalendarEvents").doc(fingerprint);
+      let shouldWrite = true;
+      try {
+        const existingDoc = await docRef.get();
+        if (existingDoc && existingDoc.exists) {
+          const existingData = existingDoc.data();
+          const existingSourceUpdate = (existingData?.sourceUpdateTime as string) || "";
+          shouldWrite = shouldOverwriteSession(existingSourceUpdate, sourceUpdateTime);
+        }
+      } catch {
+        // If read fails (e.g. offline/mock), proceed to write
+        shouldWrite = true;
+      }
+
+      if (shouldWrite) {
+        batch.set(docRef, publicTimetableRecord(event, sourceUpdateTime), { merge: true });
+        writesInBatch++;
+      }
     }
-    await batch.commit();
-  }
-  const sharedDeletes = [...removedSharedEventIds].filter(id => !sharedEvents.has(id));
-  for (let i = 0; i < sharedDeletes.length; i += BATCH_SIZE) {
-    const batch = db.batch();
-    for (const id of sharedDeletes.slice(i, i + BATCH_SIZE)) {
-      batch.delete(db.collection("sharedCalendarEvents").doc(id));
+
+    if (writesInBatch > 0) {
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   // Build dashboard summaries
