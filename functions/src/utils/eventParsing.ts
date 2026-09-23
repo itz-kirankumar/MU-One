@@ -30,6 +30,7 @@ export interface NormalizedEvent {
   sectionNumber: number | null;
   sectionCode: string | null;
   sharedTimetable?: boolean;
+  sourceUpdateTime?: string;
 }
 
 function cleanDescription(description: string): string {
@@ -61,16 +62,21 @@ export function extractDescriptionField(
 
 /**
  * Extract the shared academic section. MU uses eight common sections (A-H)
- * across programmes. Legacy numeric labels are mapped 1=A through 8=H so
- * already-connected calendars continue to work while their source labels are
- * being corrected.
+ * across programmes (TBM, YLC, HR & OS, SMG). Supports:
+ * - Standard, abbreviated, and dotted forms: "Section A-H", "Sec A-H", "Sec. A-H", "Sec.A", "Sec-A", "Section: A", "Section #A"
+ * - Legacy letter forms: "Legacy A-H"
+ * - Numeric forms mapped 1->A through 8->H: "Section 1-8", "Sec 1-8", "Sec. 1-8", "Sec.1", "Legacy 1-8"
+ * - Rejects out-of-range (e.g. 0, 9, 12, Z, I) and returns null.
  */
 export function extractSectionCode(...values: string[]): string | null {
   const text = values.filter(Boolean).join("\n");
-  const letterMatch = text.match(/\b(?:section|sec)\s*[-:#]?\s*([A-H])\b/i);
+
+  // Matches "Section A-H", "Sec A-H", "Sec. A-H", "Sec.A", "Section: A", "Sec-A", "Section #A", "Legacy A-H"
+  const letterMatch = text.match(/\b(?:section|sec|legacy)(?:\.|\b)\s*[-:#]?\s*([A-H])\b/i);
   if (letterMatch) return letterMatch[1].toUpperCase();
 
-  const numberMatch = text.match(/\b(?:section|sec)\s*[-:#]?\s*([1-8])\b/i);
+  // Matches "Section 1-8", "Sec 1-8", "Sec. 1-8", "Sec.1", "Section: 1", "Sec-1", "Section #1", "Legacy 1-8"
+  const numberMatch = text.match(/\b(?:section|sec|legacy)(?:\.|\b)\s*[-:#]?\s*([1-8])\b/i);
   if (!numberMatch) return null;
   return String.fromCharCode(64 + Number(numberMatch[1]));
 }
@@ -166,6 +172,7 @@ export function normalizeEvent(
     : formatDate(startDate, isAllDay);
   const timeFormatted =
     isAllDay || isNaN(startDate.getTime()) ? "All day" : formatTime(startDate);
+  const sourceUpdateTime = typeof event["updated"] === "string" ? event["updated"] : "";
 
   return {
     googleEventId: typeof event["id"] === "string" ? event["id"] : "",
@@ -194,6 +201,7 @@ export function normalizeEvent(
     timeFormatted,
     sectionNumber,
     sectionCode,
+    sourceUpdateTime,
   };
 }
 

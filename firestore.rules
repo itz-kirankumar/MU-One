@@ -6,7 +6,7 @@ service cloud.firestore {
     function isMuUser() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email.matches('.*@mastersunion\\.org$');
+        && request.auth.token.email.lower().matches('.*@mastersunion\\.org$');
     }
 
     // Private beta admission. The admin account is always admitted; every
@@ -14,8 +14,8 @@ service cloud.firestore {
     function hasPlatformAccess() {
       return isMuUser()
         && (
-          request.auth.token.email == 'kiran.kumar2028@mastersunion.org'
-          || exists(/databases/$(database)/documents/platformAccess/$(request.auth.token.email))
+          request.auth.token.email.lower() == 'kiran.kumar2028@mastersunion.org'
+          || exists(/databases/$(database)/documents/platformAccess/$(request.auth.token.email.lower()))
         );
     }
 
@@ -111,6 +111,12 @@ service cloud.firestore {
     // functions, where administrator checks and field validation are enforced.
     match /platformAccess/{document=**} {
       allow read, write: if false;
+    }
+
+    // Shared announcements
+    match /announcements/{id} {
+      allow read: if hasPlatformAccess();
+      allow write: if isMuUser() && request.auth.token.email.lower() == 'kiran.kumar2028@mastersunion.org';
     }
 
     match /platformWaitlist/{document=**} {

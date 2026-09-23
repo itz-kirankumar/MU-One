@@ -180,3 +180,14 @@ export interface DashboardData {
   syncedAt?: string; // ISO
   error?: string;
 }
+
+export interface Announcement {
+  id: string;
+  title: string;
+  deadlineIso: string;
+  createdAt: string;
+  updatedAt: string;
+  authorEmail: string;
+  sections: string[]; // ['all'] or subset of ['A','B','C','D','E','F','G','H']
+}
+

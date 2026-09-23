@@ -93,7 +93,7 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
         <button
           onClick={onMobileMenuOpen}
           aria-label="Open navigation menu"
-          className="flex md:hidden h-8 w-8 items-center justify-center rounded text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+          className="flex md:hidden h-8 w-8 items-center justify-center rounded text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
         >
           <Menu className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -108,7 +108,7 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
           <Link
             href="/admin/access"
             aria-label="Open access control"
-            className="flex items-center gap-1.5 rounded-md border border-[#3b341a] bg-[#211d0d] px-3 py-1.5 text-xs font-semibold text-[#f7d344] hover:bg-[#2b2510] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+            className="flex items-center gap-1.5 rounded-md border border-[#3b341a] bg-[#211d0d] px-3 py-1.5 text-xs font-semibold text-[#f7d344] hover:bg-[#2b2510] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
           >
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="hidden lg:inline">Access</span>
@@ -160,7 +160,7 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
                 : 'Click to sync with Google'
             }
             aria-label="Sync with Google"
-            className="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-[#222] hover:text-[#f7d344] disabled:opacity-40 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"
+            className="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-[#222] hover:text-white disabled:opacity-40 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${isSyncActive ? 'animate-spin text-[#f7d344]' : ''}`}
@@ -180,24 +180,6 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
             <span className="hidden sm:inline">Voice Copilot</span>
           </button>
         )}
-
-        <button
-          onClick={onNewEvent}
-          aria-label="New calendar event"
-          className="flex items-center gap-1.5 rounded-md border border-[#2A2A2A] bg-[#161616] px-3 py-1.5 text-xs text-gray-300 hover:bg-[#222] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] transition-colors"
-        >
-          <CalendarPlus className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="hidden sm:inline">Event</span>
-        </button>
-
-        <button
-          onClick={onComposeMail}
-          aria-label="Compose email"
-          className="flex items-center gap-1.5 rounded-md border border-[#2A2A2A] bg-[#161616] px-3 py-1.5 text-xs text-gray-300 hover:bg-[#222] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] transition-colors"
-        >
-          <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="hidden sm:inline">Compose</span>
-        </button>
       </div>
     </header>
   );

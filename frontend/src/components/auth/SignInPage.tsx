@@ -89,7 +89,7 @@ export function SignInPage() {
         <button
           onClick={handleSignIn}
           disabled={signingIn || loading}
-          className="flex w-full items-center justify-center gap-3 rounded-lg bg-[#f7d344] px-4 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] focus-visible:ring-offset-2 focus-visible:ring-offset-[#161616]"
+          className="flex w-full items-center justify-center gap-3 rounded-lg bg-[#f7d344] px-4 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[#161616]"
         >
           {signingIn ? (
             <LoadingSpinner size="sm" />

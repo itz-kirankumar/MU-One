@@ -8,6 +8,7 @@ functions-debug.log
 functions/node_modules/
 functions/lib/
 functions/.env
+functions/.env.mu-one-*
 functions/.secret.local
 
 # Node

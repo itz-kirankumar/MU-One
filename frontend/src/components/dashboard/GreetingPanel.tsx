@@ -3,6 +3,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDashboard } from '@/contexts/DashboardContext';
+import { Calendar, CheckCircle2, Mail } from 'lucide-react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -21,39 +22,62 @@ export function GreetingPanel() {
   const eventCount = dashboardData?.events?.length ?? 0;
   const mailCount = dashboardData?.mailSignals?.length ?? 0;
   const taskCount = dashboardData?.googleTasks?.filter((t) => !t.completed).length ?? 0;
-  const calCount = dashboardData?.connectedCalendars ?? 0;
   const syncedAt = dashboardData?.syncedAt;
 
-  function formatSyncTime(iso: string) {
-    return new Date(iso).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
+  const today = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    month: 'short', 
+    day: 'numeric' 
+  });
 
   return (
-    <div className="rounded-xl border border-[#222] bg-[#161616] px-5 py-4">
-      <h2 className="text-xl font-bold text-white">
-        {getGreeting()}, {firstName}
-      </h2>
-      <p className="mt-1.5 text-sm text-gray-400">
-        {loading ? (
-          <span className="inline-block h-4 w-56 animate-pulse rounded bg-[#2A2A2A]" />
-        ) : syncedAt ? (
-          <>
-            All sources connected · Last synced at{' '}
-            <span className="text-gray-300">{formatSyncTime(syncedAt)}</span>
-          </>
-        ) : (
-          <>
-            {calCount > 0 && `Syncing ${calCount} calendar${calCount !== 1 ? 's' : ''} · `}
-            {eventCount > 0 && `${eventCount} event${eventCount !== 1 ? 's' : ''} · `}
-            {mailCount > 0 && `${mailCount} mail${mailCount !== 1 ? 's' : ''} · `}
-            {taskCount > 0 && `${taskCount} task${taskCount !== 1 ? 's' : ''}`}
-            {!calCount && !eventCount && !mailCount && !taskCount && 'Connect Google to get started'}
-          </>
+    <div className="relative overflow-hidden rounded-xl border border-[#2a2a2a] bg-gradient-to-br from-[#1c1c1c] to-[#121212] px-6 py-6 shadow-md">
+      {/* Subtle decorative mesh/glow */}
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#f7d344]/5 blur-[80px]" />
+      
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-[#f7d344]/80">
+            {today}
+          </p>
+          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            {getGreeting()}, {firstName}.
+          </h2>
+          <p className="mt-2 text-sm text-gray-400">
+            {loading ? (
+              <span className="inline-block h-4 w-48 animate-pulse rounded bg-[#2A2A2A]" />
+            ) : !syncedAt ? (
+              'Connect your Google account to see your daily summary.'
+            ) : (
+              'Here is what is happening across your workspace today.'
+            )}
+          </p>
+        </div>
+
+        {/* Dynamic stat pills */}
+        {!loading && syncedAt && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#111]/60 px-3.5 py-2.5 backdrop-blur-sm shadow-sm">
+              <Calendar className="h-4 w-4 text-emerald-400" />
+              <span className="text-sm font-medium text-gray-200">
+                {eventCount} {eventCount === 1 ? 'event' : 'events'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#111]/60 px-3.5 py-2.5 backdrop-blur-sm shadow-sm">
+              <CheckCircle2 className="h-4 w-4 text-[#f7d344]" />
+              <span className="text-sm font-medium text-gray-200">
+                {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#111]/60 px-3.5 py-2.5 backdrop-blur-sm shadow-sm">
+              <Mail className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-medium text-gray-200">
+                {mailCount} {mailCount === 1 ? 'email' : 'emails'}
+              </span>
+            </div>
+          </div>
         )}
-      </p>
+      </div>
     </div>
   );
 }

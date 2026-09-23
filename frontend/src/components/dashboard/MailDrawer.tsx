@@ -710,18 +710,7 @@ export function MailDrawer({ mail, onClose, onComplete }: MailDrawerProps) {
 
         {/* 4. Email Body Canvas (Pure White Gmail Canvas matching Image 1) */}
         <div className="flex-1 overflow-y-auto custom-scrollbar px-6 sm:px-8 py-6 bg-white min-h-[360px]">
-          {loading ? (
-            <div className="space-y-4 py-8 max-w-2xl">
-              <div className="flex items-center gap-2.5 text-xs text-[#5F6368]">
-                <LoadingSpinner size="sm" />
-                <span>Loading formatted email from Gmail...</span>
-              </div>
-              <div className="h-4 w-5/6 animate-pulse rounded bg-[#F1F3F4]" />
-              <div className="h-4 w-full animate-pulse rounded bg-[#F1F3F4]" />
-              <div className="h-4 w-3/4 animate-pulse rounded bg-[#F1F3F4]" />
-              <div className="h-4 w-4/6 animate-pulse rounded bg-[#F1F3F4]" />
-            </div>
-          ) : error ? (
+          {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50/60 p-5">
               <div className="flex items-center gap-2 text-red-700 text-sm font-medium">
                 <AlertCircle className="h-4 w-4" />
@@ -749,13 +738,20 @@ export function MailDrawer({ mail, onClose, onComplete }: MailDrawerProps) {
             <div className="space-y-8">
               {/* Formatted HTML Message Body with clickable links and authentic styling */}
               <div
-                className="gmail-reading-pane select-text"
+                className={`gmail-reading-pane select-text transition-opacity duration-300 ${loading ? 'opacity-70' : 'opacity-100'}`}
                 dangerouslySetInnerHTML={{ __html: renderedContentHtml }}
                 onClick={handleBodyClick}
               />
 
+              {loading && (
+                <div className="flex items-center gap-2.5 text-xs text-[#1a73e8] mt-4">
+                  <LoadingSpinner size="sm" />
+                  <span className="font-medium">Loading full email formatting...</span>
+                </div>
+              )}
+
               {/* Attachments Section (Exact Gmail attachment card style) */}
-              {attachments.length > 0 && (
+              {!loading && attachments.length > 0 && (
                 <div className="pt-4 border-t border-[#ECEFF1]">
                   <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-[#5F6368]">
                     <Paperclip className="h-4 w-4 text-[#1a73e8]" aria-hidden="true" />

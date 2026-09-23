@@ -44,6 +44,28 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
       waitlistStatus: ownWaitlist ? String(ownWaitlist.get("status") || "waiting") : null,
       program: ownWaitlist ? String(ownWaitlist.get("program") || "") : null,
       section: ownWaitlist ? String(ownWaitlist.get("section") || "").toUpperCase() : null,
+      calendarConsent: Boolean(ownWaitlist?.get("calendarConsent")),
+    };
+  }
+
+  if (action === "updateCalendarConsent") {
+    const consent = Boolean(data.consent);
+    const ref = db.collection("platformWaitlist").doc(callerEmail);
+    const existing = await ref.get();
+
+    await ref.set({
+      email: callerEmail,
+      uid,
+      displayName: String(request.auth?.token.name || existing.get("displayName") || "").slice(0, 120),
+      calendarConsent: consent,
+      calendarConsentAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: existing.exists ? (existing.get("status") || "waiting") : "waiting",
+    }, { merge: true });
+
+    return {
+      success: true,
+      calendarConsent: consent,
     };
   }
 
@@ -57,17 +79,29 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
     // Only send the email if they were not already on the waitlist
     const isNewJoiner = !existing.exists || existing.get("status") === null;
 
-    await ref.set({
+    const hasConsentParam = typeof data.calendarConsent === "boolean";
+    const calendarConsent = hasConsentParam
+      ? (data.calendarConsent as boolean)
+      : (existing.get("calendarConsent") ?? false);
+
+    const updatePayload: Record<string, unknown> = {
       email: callerEmail,
       uid,
-      displayName: String(request.auth?.token.name || "").slice(0, 120),
+      displayName: String(request.auth?.token.name || existing.get("displayName") || "").slice(0, 120),
       status: existing.get("status") === "approved" ? "approved" : "waiting",
       joinedAt: existing.get("joinedAt") || admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       program: data.program || null,
       section: data.section || null,
       requestedFeatures: data.requestedFeatures || null,
-    }, { merge: true });
+      calendarConsent,
+    };
+
+    if (calendarConsent) {
+      updatePayload.calendarConsentAt = existing.get("calendarConsentAt") || admin.firestore.FieldValue.serverTimestamp();
+    }
+
+    await ref.set(updatePayload, { merge: true });
 
     if (isNewJoiner) {
       try {
@@ -85,7 +119,7 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
       }
     }
 
-    return { success: true, message: WAITLIST_MESSAGE, status: "waiting" };
+    return { success: true, message: WAITLIST_MESSAGE, status: "waiting", calendarConsent };
   }
 
   requirePlatformAdmin(request);
@@ -109,6 +143,7 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
         program: doc.get("program") || null,
         section: doc.get("section") || null,
         requestedFeatures: doc.get("requestedFeatures") || null,
+        calendarConsent: Boolean(doc.get("calendarConsent")),
       })),
     };
   }

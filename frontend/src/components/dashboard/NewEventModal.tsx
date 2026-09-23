@@ -69,7 +69,7 @@ export function NewEventModal({ onClose }: NewEventModalProps) {
             <button
               onClick={onClose}
               aria-label="Close"
-              className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+              className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -87,7 +87,7 @@ export function NewEventModal({ onClose }: NewEventModalProps) {
                 value={title}
                 onChange={(e) => { setTitle(e.target.value); setError(''); }}
                 placeholder="Event title"
-                className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+                className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
               />
             </div>
 
@@ -101,7 +101,7 @@ export function NewEventModal({ onClose }: NewEventModalProps) {
                   type="datetime-local"
                   value={start}
                   onChange={(e) => { setStart(e.target.value); setError(''); }}
-                  className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] [color-scheme:dark]"
+                  className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 [color-scheme:dark]"
                 />
               </div>
               <div>
@@ -113,7 +113,7 @@ export function NewEventModal({ onClose }: NewEventModalProps) {
                   type="datetime-local"
                   value={end}
                   onChange={(e) => { setEnd(e.target.value); setError(''); }}
-                  className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] [color-scheme:dark]"
+                  className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 [color-scheme:dark]"
                 />
               </div>
             </div>
@@ -127,7 +127,7 @@ export function NewEventModal({ onClose }: NewEventModalProps) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="w-full resize-none rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+                className="w-full resize-none rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
               />
             </div>
 
@@ -137,7 +137,7 @@ export function NewEventModal({ onClose }: NewEventModalProps) {
             <button
               type="submit"
               disabled={submitting || success}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#f7d344] py-2.5 text-sm font-semibold text-black disabled:opacity-50 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#f7d344] py-2.5 text-sm font-semibold text-black disabled:opacity-50 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
             >
               {submitting ? <LoadingSpinner size="sm" /> : null}
               {success ? 'Created!' : submitting ? 'Creating…' : 'Create Event'}

@@ -21,13 +21,97 @@ describe("extractDescriptionField", () => {
   });
 });
 
-describe("extractSectionNumber", () => {
-  it("maps the eight legacy numeric sections to A-H", () => {
-    expect(extractSectionNumber("Section 5 - Term 3 - PGPTBMYLC2")).toBe(5);
-    expect(extractSectionCode("Section 5 - Term 3 - PGPTBMYLC2")).toBe("E");
-    expect(extractSectionCode("Consumer Behaviour", "Sec-H")).toBe("H");
-    expect(extractSectionNumber("Room 914", "Term 2")).toBeNull();
+describe("extractSectionCode and extractSectionNumber", () => {
+  it("parses standard 'Section A' through 'Section H'", () => {
+    const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    letters.forEach((letter) => {
+      expect(extractSectionCode(`Term 1 - Section ${letter}`)).toBe(letter);
+      expect(extractSectionCode(`Section ${letter.toLowerCase()}`)).toBe(letter);
+    });
+  });
+
+  it("parses abbreviated 'Sec A' through 'Sec H'", () => {
+    const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    letters.forEach((letter) => {
+      expect(extractSectionCode(`Term 2 - Sec ${letter}`)).toBe(letter);
+    });
+  });
+
+  it("parses dotted abbreviation 'Sec. A' through 'Sec. H' and attached 'Sec.A'", () => {
+    const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    letters.forEach((letter) => {
+      expect(extractSectionCode(`PGP TBM - Sec. ${letter} - Classroom`)).toBe(letter);
+      expect(extractSectionCode(`Sec.${letter}`)).toBe(letter);
+    });
+  });
+
+  it("parses various delimiters: 'Section: A', 'Sec-A', 'Section #A', 'Section - B'", () => {
+    expect(extractSectionCode("Section: A")).toBe("A");
+    expect(extractSectionCode("Sec-B")).toBe("B");
+    expect(extractSectionCode("Section #C")).toBe("C");
+    expect(extractSectionCode("Section - D")).toBe("D");
+    expect(extractSectionCode("Sec: E")).toBe("E");
+  });
+
+  it("parses legacy letter prefix: 'Legacy A' through 'Legacy H'", () => {
+    expect(extractSectionCode("Legacy A")).toBe("A");
+    expect(extractSectionCode("Cohort - Legacy B")).toBe("B");
+    expect(extractSectionCode("Legacy H")).toBe("H");
+  });
+
+  it("maps numeric sections 'Section 1' through 'Section 8' to A-H", () => {
+    const mapping: Record<number, string> = {
+      1: "A", 2: "B", 3: "C", 4: "D", 5: "E", 6: "F", 7: "G", 8: "H",
+    };
+    Object.entries(mapping).forEach(([num, letter]) => {
+      expect(extractSectionCode(`Cohort 2026 - Section ${num}`)).toBe(letter);
+      expect(extractSectionNumber(`Cohort 2026 - Section ${num}`)).toBe(Number(num));
+    });
+  });
+
+  it("maps abbreviated numeric 'Sec 1' through 'Sec 8' and dotted 'Sec. 1' through 'Sec. 8'", () => {
+    expect(extractSectionCode("Sec 1")).toBe("A");
+    expect(extractSectionCode("Sec. 2")).toBe("B");
+    expect(extractSectionCode("Sec.3")).toBe("C");
+    expect(extractSectionCode("Sec-4")).toBe("D");
+    expect(extractSectionCode("Sec 8")).toBe("H");
+  });
+
+  it("maps 'Legacy 1' through 'Legacy 8' to A-H", () => {
+    expect(extractSectionCode("Legacy 1")).toBe("A");
+    expect(extractSectionCode("Legacy 5")).toBe("E");
+    expect(extractSectionCode("Legacy 8")).toBe("H");
+    expect(extractSectionNumber("Legacy 8")).toBe(8);
+  });
+
+  it("operates consistently across all 4 programs: TBM, YLC, HR & OS, SMG", () => {
+    expect(extractSectionCode("PGP TBM - Section A - Term 1")).toBe("A");
+    expect(extractSectionCode("PGP TBM · Term 2 · Sec 1")).toBe("A");
+    expect(extractSectionCode("YLC Programme - Section D")).toBe("D");
+    expect(extractSectionCode("YLC - Sec. B")).toBe("B");
+    expect(extractSectionCode("HR & OS - Sec E")).toBe("E");
+    expect(extractSectionCode("HR & OS Sec 3")).toBe("C");
+    expect(extractSectionCode("HR&OS Sec. 6")).toBe("F");
+    expect(extractSectionCode("SMG Section D")).toBe("D");
+    expect(extractSectionCode("SMG - Section 7")).toBe("G");
+    expect(extractSectionCode("SMG Sec. 8")).toBe("H");
+  });
+
+  it("rejects invalid sections, out-of-range numbers, and non-section words", () => {
+    expect(extractSectionCode("Section 0")).toBeNull();
     expect(extractSectionCode("Section 9")).toBeNull();
+    expect(extractSectionCode("Sec 12")).toBeNull();
+    expect(extractSectionCode("Section Z")).toBeNull();
+    expect(extractSectionCode("Section I")).toBeNull();
+    expect(extractSectionCode("Legacy 9")).toBeNull();
+    expect(extractSectionCode("Legacy 0")).toBeNull();
+    expect(extractSectionCode("Secondary A")).toBeNull();
+    expect(extractSectionCode("Security B")).toBeNull();
+    expect(extractSectionCode("Second C")).toBeNull();
+    expect(extractSectionCode("Room 914", "Term 2")).toBeNull();
+    expect(extractSectionCode("No section info here")).toBeNull();
+    expect(extractSectionNumber("Room 914", "Term 2")).toBeNull();
+    expect(extractSectionNumber("Section 9")).toBeNull();
   });
 });
 
@@ -215,4 +299,15 @@ describe("normalizeEvent", () => {
     expect(result.sectionNumber).toBe(5);
     expect(result.sectionCode).toBe("E");
   });
+
+  it("captures sourceUpdateTime from Google event updated property", () => {
+    const timestamp = "2026-09-21T15:30:00.000Z";
+    const result = normalizeEvent(
+      { ...baseEvent, updated: timestamp },
+      "Term 1",
+      "cal-1"
+    );
+    expect(result.sourceUpdateTime).toBe(timestamp);
+  });
 });
+

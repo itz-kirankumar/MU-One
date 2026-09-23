@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Plus, Circle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Circle, CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { createGoogleTask, completeGoogleTask } from '@/lib/functions';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -13,27 +13,53 @@ export function GoogleTasksList() {
   const [newTitle, setNewTitle] = useState('');
   const [newDue, setNewDue] = useState('');
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  
+  // Optimistic UI states for instant perceived performance
+  const [optimisticCompleted, setOptimisticCompleted] = useState<Set<string>>(new Set());
+  const [optimisticAdded, setOptimisticAdded] = useState<GoogleTask[]>([]);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
-  const tasks = (dashboardData?.googleTasks ?? []).filter((t) => !t.completed);
+  // Clean up optimistic additions when real data catches up
+  const realTasksLength = dashboardData?.googleTasks?.length || 0;
+  useEffect(() => {
+    if (optimisticAdded.length > 0) {
+      setOptimisticAdded([]);
+    }
+  }, [realTasksLength]); // Re-evaluate when real tasks update
+
+  const realTasks = (dashboardData?.googleTasks ?? []).filter(
+    (t) => !t.completed && !optimisticCompleted.has(t.id || t.taskId || '')
+  );
+  
+  const tasks = [...optimisticAdded, ...realTasks];
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = newTitle.trim();
-    if (!trimmed) {
-      setCreateError('Task title is required');
-      return;
-    }
-    setCreateError('');
+    if (!trimmed) return;
+    
+    // Optimistic Add
+    const tempId = `optimistic-${Date.now()}`;
+    const newTask: GoogleTask = {
+      id: tempId,
+      taskId: tempId,
+      taskListId: '',
+      title: trimmed,
+      dueDate: newDue || undefined,
+      completed: false,
+    };
+    
+    setOptimisticAdded((prev) => [newTask, ...prev]);
+    setNewTitle('');
+    setNewDue('');
     setCreating(true);
+    
     try {
       await createGoogleTask({ title: trimmed, dueDate: newDue || undefined });
-      setNewTitle('');
-      setNewDue('');
+      // The listener will pull the real task and trigger the useEffect to clear optimisticAdded
     } catch (err: unknown) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create task');
+      setOptimisticAdded((prev) => prev.filter(t => t.id !== tempId));
+      alert(err instanceof Error ? err.message : 'Failed to create task');
     } finally {
       setCreating(false);
     }
@@ -41,110 +67,120 @@ export function GoogleTasksList() {
 
   async function handleComplete(task: GoogleTask) {
     const taskId = (task.id || task.taskId || '').trim();
-    if (!taskId) return;
-    setCompletingIds((prev) => new Set(prev).add(taskId));
-    setActionErrors((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+    if (!taskId || taskId.startsWith('optimistic-')) return;
+    
+    // Optimistic Complete (hides it instantly)
+    setOptimisticCompleted((prev) => new Set(prev).add(taskId));
+    
     try {
       await completeGoogleTask({ taskId, taskListId: task.taskListId });
-      // UI will update via Firestore real-time listener only
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to complete task';
-      setActionErrors((prev) => ({ ...prev, [taskId]: msg }));
-    } finally {
-      setCompletingIds((prev) => {
+      // Revert if failed
+      setOptimisticCompleted((prev) => {
         const n = new Set(prev);
         n.delete(taskId);
         return n;
       });
+      const msg = err instanceof Error ? err.message : 'Failed to complete task';
+      setActionErrors((prev) => ({ ...prev, [taskId]: msg }));
+      setTimeout(() => setActionErrors((prev) => { const n = {...prev}; delete n[taskId]; return n; }), 3000);
     }
   }
 
   return (
-    <section className="rounded-xl border border-[#222] bg-[#161616] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#1A1A1A]">
-        <h3 className="text-sm font-semibold text-white">Google Tasks</h3>
+    <section className="flex-1 flex flex-col min-h-[600px] rounded-xl border border-[#222] bg-[#161616] overflow-hidden">
+      <div className="sticky top-0 z-10 bg-[#161616] px-5 py-4 border-b border-[#1A1A1A] flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-white tracking-wide">Google Tasks</h3>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-[#222] text-gray-400 font-medium">
+          {tasks.length} active
+        </span>
       </div>
 
-      <div className="px-4 py-3 space-y-4">
-        {/* New task form */}
-        <form onSubmit={handleCreate} noValidate className="space-y-2">
-          <div className="flex gap-2">
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Modern New Task Input */}
+        <div className="p-4 border-b border-[#1A1A1A]">
+          <form onSubmit={handleCreate} className="relative flex flex-col gap-3 p-3 bg-[#111] border border-[#2A2A2A] rounded-lg focus-within:border-[#444] transition-colors shadow-inner">
             <input
               type="text"
               value={newTitle}
-              onChange={(e) => { setNewTitle(e.target.value); setCreateError(''); }}
-              placeholder="New task…"
-              aria-label="New Google task title"
-              className="flex-1 min-w-0 rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="What needs to be done?"
+              className="bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none w-full"
             />
-            <button
-              type="submit"
-              disabled={creating}
-              aria-label="Add Google task"
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-[#f7d344] text-black disabled:opacity-50 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
-            >
-              {creating ? <LoadingSpinner size="sm" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
-            </button>
-          </div>
-          <input
-            type="date"
-            value={newDue}
-            onChange={(e) => setNewDue(e.target.value)}
-            aria-label="Task due date"
-            className="w-full rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] [color-scheme:dark]"
-          />
-          {createError && (
-            <p className="text-xs text-red-400" role="alert">{createError}</p>
-          )}
-        </form>
+            <div className="flex items-center justify-between pt-1 border-t border-[#1A1A1A]">
+              <div className="flex items-center gap-1.5 text-gray-500 hover:text-gray-300 transition-colors">
+                <CalendarIcon className="h-3.5 w-3.5" />
+                <input
+                  type="date"
+                  value={newDue}
+                  onChange={(e) => setNewDue(e.target.value)}
+                  className="bg-transparent text-xs focus:outline-none [color-scheme:dark] cursor-pointer"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!newTitle.trim() || creating}
+                className="text-xs font-medium bg-white text-black px-3 py-1.5 rounded-md hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-white transition-colors"
+              >
+                Add Task
+              </button>
+            </div>
+          </form>
+        </div>
 
-        {/* Task list */}
-        <div className="space-y-0.5">
-          {loading ? (
-            <div className="space-y-2">
+        {/* Task list scrollable area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
+          {loading && tasks.length === 0 ? (
+            <div className="space-y-2 p-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-9 animate-pulse rounded bg-[#2A2A2A]" />
+                <div key={i} className="h-10 animate-pulse rounded-lg bg-[#222]" />
               ))}
             </div>
           ) : tasks.length === 0 ? (
-            <EmptyState title="No active Google Tasks" />
+            <div className="mt-8">
+              <EmptyState title="All caught up!" description="No active tasks in your Google account." />
+            </div>
           ) : (
             tasks.map((task, idx) => {
               const taskId = task.id || task.taskId || `gtask-${idx}`;
-              const isCompleting = completingIds.has(taskId);
+              const isOptimistic = taskId.startsWith('optimistic-');
               const listTitle = task.taskListName || task.taskListTitle;
+              
               return (
-                <div key={taskId} className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[#1A1A1A] transition-colors">
+                <div key={taskId} className={`group flex flex-col gap-0.5 transition-all duration-300 ${isOptimistic ? 'opacity-50' : 'opacity-100'}`}>
+                  <div className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-[#1A1A1A] border border-transparent hover:border-[#222] transition-colors">
                     <button
                       onClick={() => handleComplete(task)}
-                      disabled={isCompleting}
-                      aria-label={`Complete "${task.title}"`}
-                      className="flex-shrink-0 text-gray-500 hover:text-green-400 disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded"
+                      disabled={isOptimistic}
+                      className="mt-0.5 flex-shrink-0 text-gray-500 hover:text-emerald-400 disabled:opacity-40 transition-colors"
                     >
-                      {isCompleting ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <Circle className="h-4 w-4" aria-hidden="true" />
-                      )}
+                      <Circle className="h-4 w-4" />
                     </button>
-                    <span className="flex-1 min-w-0 truncate text-sm text-gray-200">{task.title}</span>
-                    {listTitle && (
-                      <span className="hidden sm:block text-[10px] text-gray-600 flex-shrink-0">
-                        {listTitle}
-                      </span>
-                    )}
-                    {task.dueDate && (
-                      <span className="text-[10px] text-gray-600 flex-shrink-0">
-                        {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </span>
-                    )}
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <span className="text-sm text-gray-200 leading-snug">{task.title}</span>
+                      
+                      {/* Meta info row */}
+                      {(listTitle || task.dueDate) && (
+                        <div className="flex items-center gap-2 mt-1">
+                          {task.dueDate && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#222] text-yellow-500/80 font-medium">
+                              {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-GB', {
+                                day: 'numeric',
+                                month: 'short',
+                              })}
+                            </span>
+                          )}
+                          {listTitle && (
+                            <span className="text-[10px] text-gray-500 truncate">
+                              {listTitle}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {actionErrors[taskId] && (
-                    <p className="pl-8 text-xs text-red-400" role="alert">
+                    <p className="pl-10 text-xs text-red-400" role="alert">
                       {actionErrors[taskId]}
                     </p>
                   )}

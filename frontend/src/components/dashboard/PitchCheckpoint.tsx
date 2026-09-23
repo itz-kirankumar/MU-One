@@ -34,7 +34,7 @@ import {
 } from '@/types/checkpoint';
 
 const fieldClass =
-  'w-full min-w-0 rounded-xl border border-[#333] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#f7d344]/60';
+  'w-full min-w-0 rounded-xl border border-[#333] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20/60';
 const quietButton =
   'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#3A3A3A] px-3 py-2 text-sm font-medium text-gray-200 hover:bg-[#242424] focus-visible:outline-2 focus-visible:outline-[#f7d344] disabled:opacity-40 disabled:cursor-not-allowed';
 const primaryButton =

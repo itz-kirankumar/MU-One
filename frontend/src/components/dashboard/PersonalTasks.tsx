@@ -54,8 +54,8 @@ export function PersonalTasks() {
   }
 
   return (
-    <section className="rounded-xl border border-[#222] bg-[#161616] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#1A1A1A]">
+    <section className="flex flex-col h-full rounded-xl border border-[#222] bg-[#161616] overflow-hidden max-h-[400px] overflow-y-auto custom-scrollbar">
+      <div className="sticky top-0 z-10 bg-[#161616] px-5 py-4 border-b border-[#1A1A1A]">
         <h3 className="text-sm font-semibold text-white">Personal Priorities</h3>
       </div>
 
@@ -69,13 +69,13 @@ export function PersonalTasks() {
               onChange={(e) => { setTitle(e.target.value); setFormError(''); }}
               placeholder="Add a task…"
               aria-label="New task title"
-              className="flex-1 min-w-0 rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+              className="flex-1 min-w-0 rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
             />
             <button
               type="submit"
               disabled={creating}
               aria-label="Add task"
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-[#f7d344] text-black disabled:opacity-50 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-[#f7d344] text-black disabled:opacity-50 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -87,13 +87,13 @@ export function PersonalTasks() {
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
               aria-label="Due date"
-              className="flex-1 min-w-0 rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] [color-scheme:dark]"
+              className="flex-1 min-w-0 rounded-md border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-sm text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 [color-scheme:dark]"
             />
             <button
               type="button"
               onClick={() => setImportance((i) => (i === 'must_do' ? 'normal' : 'must_do'))}
               aria-pressed={importance === 'must_do'}
-              className={`flex-shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] ${
+              className={`flex-shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ${
                 importance === 'must_do'
                   ? 'border-[#f7d344]/40 bg-[#f7d344]/10 text-[#f7d344]'
                   : 'border-[#2A2A2A] bg-[#1A1A1A] text-gray-500 hover:text-gray-300'
@@ -128,7 +128,7 @@ export function PersonalTasks() {
                 <button
                   onClick={() => handleToggle(task.id, task.completed)}
                   aria-label={task.completed ? `Mark "${task.title}" incomplete` : `Complete "${task.title}"`}
-                  className="flex-shrink-0 text-gray-500 hover:text-[#f7d344] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded"
+                  className="flex-shrink-0 text-gray-500 hover:text-[#f7d344] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
                 >
                   {task.completed ? (
                     <CheckCircle2 className="h-4 w-4 text-green-500" aria-hidden="true" />
@@ -165,7 +165,7 @@ export function PersonalTasks() {
                 <button
                   onClick={() => handleDelete(task.id)}
                   aria-label={`Delete "${task.title}"`}
-                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded focus:opacity-100"
+                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded focus:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>

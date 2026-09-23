@@ -1,12 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Inbox, Mail, MailOpen, PenLine, Pin, Plus, Search, Tag, X } from 'lucide-react';
+import { Eye, EyeOff, Inbox, PenLine, Pin, Plus, Search, Tag, X, ArrowUpRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { updateMailWorkspace } from '@/lib/firestore';
 import { MailDrawer } from '@/components/dashboard/MailDrawer';
+import { extractMailDueDate, formatMailDueDate, getMailDeadlineStatus, toLocalDateIso } from '@/lib/mailUtils';
 import type { MailLabel, MailSignal, MailWorkspace } from '@/types';
+import { AlertCircle, Clock, Calendar } from 'lucide-react';
 
 const LABEL_COLORS = ['#F87171', '#FB923C', '#FACC15', '#4ADE80', '#38BDF8', '#A78BFA', '#F472B6'];
 const DEFAULT_WORKSPACE: MailWorkspace = {
@@ -25,12 +27,32 @@ function mailId(mail: MailSignal): string {
 }
 
 function sender(mail: MailSignal): string {
-  return mail.sender || mail.from || mail.fromEmail || "Masters' Union";
+  const raw = mail.sender || mail.from || mail.fromEmail || "Masters' Union";
+  return raw.replace(/\s*<[^>]+>/, '').trim() || raw;
+}
+
+function getAvatarColor(name: string): string {
+  const colors = ['#EA4335', '#1A73E8', '#188038', '#F29900', '#9334E6', '#12B5CB', '#E52592', '#FA7B17'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) { hash = (hash << 5) - hash + name.charCodeAt(i); hash |= 0; }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function getInitials(name?: string): string {
+  if (!name || typeof name !== 'string') return 'MU';
+  const clean = name.replace(/<[^>]+>/, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'MU';
+  return parts.map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
 function formatReceived(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (Number.isNaN(date.getTime())) return '';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const itemDate = new Date(date); itemDate.setHours(0, 0, 0, 0);
+  if (itemDate.getTime() === today.getTime()) return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 interface EmailCenterProps {
@@ -127,7 +149,7 @@ export function EmailCenter({ onCompose }: EmailCenterProps) {
           <div className="mt-4 border-t border-[#252525] pt-3">
             <div className="mb-2 flex items-center justify-between px-2"><span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Labels</span><button type="button" onClick={() => setShowNewLabel(value => !value)} aria-label="Create label" className="grid h-7 w-7 place-items-center rounded-md text-gray-500 hover:bg-[#222] hover:text-white"><Plus className="h-3.5 w-3.5" /></button></div>
             {showNewLabel && <div className="mb-3 space-y-2 rounded-lg border border-[#303030] bg-[#181818] p-2">
-              <input value={newLabelName} onChange={event => setNewLabelName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') createLabel(); }} maxLength={30} placeholder="Label name" aria-label="Label name" className="h-8 w-full rounded-md border border-[#303030] bg-[#101010] px-2 text-xs text-white outline-none focus:border-[#f7d344]" />
+              <input value={newLabelName} onChange={event => setNewLabelName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') createLabel(); }} maxLength={30} placeholder="Label name" aria-label="Label name" className="h-8 w-full rounded-md border border-[#303030] bg-[#101010] px-2 text-xs text-white outline-none focus:border-white/20" />
               <div className="flex flex-wrap gap-1">{LABEL_COLORS.map(color => <button key={color} type="button" onClick={() => setNewLabelColor(color)} aria-label={`Use ${color} label color`} className={`h-5 w-5 rounded-full ${newLabelColor === color ? 'ring-2 ring-white ring-offset-1 ring-offset-[#181818]' : ''}`} style={{ backgroundColor: color }} />)}</div>
               <button type="button" onClick={createLabel} aria-label="Save label" className="h-7 w-full rounded-md bg-[#f7d344] text-[11px] font-semibold text-black">Create label</button>
             </div>}
@@ -137,7 +159,7 @@ export function EmailCenter({ onCompose }: EmailCenterProps) {
 
         <div className="flex flex-1 flex-col min-w-0 bg-[#0F0F0F]">
           <div className="shrink-0 border-b border-[#252525] p-2 bg-[#131313] flex items-center justify-between">
-            <label className="relative block w-full max-w-md"><Search className="pointer-events-none absolute left-3 top-2 h-4 w-4 text-gray-500" /><span className="sr-only">Search mail</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search mail" className="h-8 w-full rounded-md bg-[#222] pl-9 pr-3 text-xs text-white outline-none focus:bg-[#2a2a2a] focus:ring-1 focus:ring-[#f7d344]" /></label>
+            <label className="relative block w-full max-w-md"><Search className="pointer-events-none absolute left-3 top-2 h-4 w-4 text-gray-500" /><span className="sr-only">Search mail</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search mail" className="h-8 w-full rounded-md border border-transparent bg-[#222] pl-9 pr-3 text-xs text-white outline-none focus:bg-[#2a2a2a] focus:ring-1 focus:ring-white/20 focus:border-white/20" /></label>
             {saveError && <p role="alert" className="ml-4 text-xs text-red-400">{saveError}</p>}
           </div>
           
@@ -147,35 +169,79 @@ export function EmailCenter({ onCompose }: EmailCenterProps) {
               const state = workspace.messages[id] ?? {};
               const assigned = workspace.labels.filter(label => state.labelIds?.includes(label.id));
               
-              return <article key={id} onClick={() => setSelectedMail(mail)} className={`group flex items-center gap-3 px-3 py-2 transition-colors cursor-pointer ${state.read ? 'bg-[#0A0A0A] text-gray-400 hover:bg-[#121212]' : 'bg-[#151515] text-gray-100 font-medium hover:bg-[#1a1a1a]'}`}>
-                {/* Actions */}
-                <div className="flex items-center gap-1.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { pinned: !state.pinned }); }} aria-label={state.pinned ? 'Unpin' : 'Pin'} className={`grid h-6 w-6 place-items-center rounded-md ${state.pinned ? 'text-[#f7d344] opacity-100' : 'text-gray-500 hover:text-[#f7d344]'}`}><Pin className="h-3.5 w-3.5" fill={state.pinned ? 'currentColor' : 'none'} /></button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { read: !state.read }); }} title={state.read ? 'Mark as unread' : 'Mark as read'} className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:text-white">{state.read ? <Mail className="h-3.5 w-3.5" /> : <MailOpen className="h-3.5 w-3.5" />}</button>
-                </div>
-                
-                {/* Sender */}
-                <div className="w-[140px] md:w-[180px] shrink-0 truncate text-[13px]">{sender(mail)}</div>
-                
-                {/* Subject & Snippet */}
-                <div className="flex-1 truncate text-[13px]">
-                  <span className={state.read ? 'text-gray-300' : 'text-white'}>{mail.subject || '(No subject)'}</span>
-                  <span className="mx-2 text-gray-600">-</span>
-                  <span className="text-gray-500">{mail.snippet}</span>
-                </div>
-                
-                {/* Labels & Tags (Hover) */}
-                <div className="hidden md:flex items-center gap-1.5 shrink-0">
-                  {assigned.map(label => <button key={label.id} type="button" onClick={(e) => { e.stopPropagation(); toggleLabel(id, label.id); }} title={`Remove ${label.name}`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap hover:opacity-75 transition-opacity" style={{ color: label.color, borderColor: `${label.color}44`, backgroundColor: `${label.color}11`, borderWidth: 1 }}>{label.name}</button>)}
+              const effectiveDueDate = mail.dueDate || extractMailDueDate(mail.subject, mail.snippet, mail.receivedAt);
+              const todayStr = toLocalDateIso(new Date());
+              let badge = null;
+              if (effectiveDueDate && !state.read) {
+                const status = getMailDeadlineStatus(effectiveDueDate, todayStr);
+                badge = status === 'passed' ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#2A0E10] text-[#F87171] border border-[#EF4444]/30 shrink-0">
+                    <AlertCircle className="h-2.5 w-2.5" /> Passed
+                  </span>
+                ) : status === 'today' ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#2A2000] text-[#FBBF24] border border-[#F59E0B]/40 shrink-0 animate-pulse">
+                    <Clock className="h-2.5 w-2.5" /> Due Today
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#1C180E] text-amber-300 border border-amber-500/25 shrink-0">
+                    <Calendar className="h-2.5 w-2.5" /> {formatMailDueDate(effectiveDueDate)}
+                  </span>
+                );
+              }
+
+              const senderName = sender(mail);
+              const avatarBg = getAvatarColor(senderName);
+
+              return <article key={id} onClick={() => setSelectedMail(mail)} className={`group flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${state.read ? 'bg-[#0A0A0A] hover:bg-[#121212]' : 'bg-[#151515] hover:bg-[#1a1a1a]'}`}>
+                {/* Actions & Avatar Container */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className={`flex items-center gap-1 shrink-0 transition-opacity ${state.pinned ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'}`}>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { pinned: !state.pinned }); }} aria-label={state.pinned ? 'Unpin' : 'Pin'} className={`grid h-6 w-6 place-items-center rounded-md ${state.pinned ? 'text-[#f7d344]' : 'text-gray-500 hover:text-[#f7d344]'}`}><Pin className="h-3.5 w-3.5" fill={state.pinned ? 'currentColor' : 'none'} /></button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { read: !state.read }); }} title={state.read ? 'Mark as unread' : 'Mark as read'} className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:text-white">{state.read ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button>
+                  </div>
                   
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
-                    <select aria-label="Add label" value="" onClick={(e) => e.stopPropagation()} onChange={event => { if (event.target.value) toggleLabel(id, event.target.value); }} className="w-6 h-6 opacity-0 absolute cursor-pointer"><option value="">+ Label</option>{workspace.labels.filter(label => !state.labelIds?.includes(label.id)).map(label => <option key={label.id} value={label.id}>{label.name}</option>)}</select>
-                    <button type="button" className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:bg-[#2a2a2a] hover:text-white pointer-events-none"><Tag className="h-3.5 w-3.5" /></button>
+                  {/* Avatar */}
+                  <div
+                    className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-[#222] ring-offset-1 ring-offset-[#161616] ${state.read ? 'opacity-50' : 'opacity-100'}`}
+                    style={{ backgroundColor: avatarBg }}
+                  >
+                    {getInitials(senderName)}
                   </div>
                 </div>
                 
+                {/* Content */}
+                <div className="flex-1 min-w-0 pl-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium truncate ${state.read ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {senderName}
+                    </span>
+                    {badge}
+                    {/* Labels & Tags */}
+                    <div className="hidden md:flex items-center gap-1.5 shrink-0">
+                      {assigned.map(label => <button key={label.id} type="button" onClick={(e) => { e.stopPropagation(); toggleLabel(id, label.id); }} title={`Remove ${label.name}`} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap hover:opacity-75 transition-opacity ${state.read ? 'opacity-50' : ''}`} style={{ color: label.color, borderColor: `${label.color}44`, backgroundColor: `${label.color}11`, borderWidth: 1 }}>{label.name}</button>)}
+                      
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center relative">
+                        <select aria-label="Add label" value="" onClick={(e) => e.stopPropagation()} onChange={event => { if (event.target.value) toggleLabel(id, event.target.value); }} className="w-5 h-5 opacity-0 absolute cursor-pointer left-0 top-0 z-10" style={{ colorScheme: 'dark' }}><option value="" className="bg-[#1A1A1A] text-gray-400">+ Label</option>{workspace.labels.filter(label => !state.labelIds?.includes(label.id)).map(label => <option key={label.id} value={label.id} className="bg-[#1A1A1A] text-white">{label.name}</option>)}</select>
+                        <button type="button" className="grid h-5 w-5 place-items-center rounded-md text-gray-500 hover:bg-[#2a2a2a] hover:text-white pointer-events-none"><Tag className="h-3 w-3" /></button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <p className={`text-[13px] font-semibold truncate leading-5 mt-0.5 ${state.read ? 'text-gray-500' : 'text-gray-100 group-hover:text-white transition-colors'}`}>
+                    {mail.subject || '(No subject)'}
+                  </p>
+                  <p className="text-[11px] text-gray-600 truncate leading-4 mt-0.5">
+                    {mail.snippet}
+                  </p>
+                </div>
+                
                 {/* Date */}
-                <div className="w-[60px] shrink-0 text-right text-[11px] text-gray-500 group-hover:hidden md:group-hover:block">{formatReceived(mail.receivedAt)}</div>
+                <div className="flex-shrink-0 flex flex-col items-end gap-1.5 ml-2">
+                  <span className={`text-[10px] tabular-nums whitespace-nowrap ${state.read ? 'text-gray-600' : 'text-gray-500'}`}>
+                    {formatReceived(mail.receivedAt)}
+                  </span>
+                  <ArrowUpRight className="h-3 w-3 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </article>;
             })}
           </div>

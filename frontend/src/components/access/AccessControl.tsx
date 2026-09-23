@@ -71,7 +71,7 @@ export function AccessControl() {
       <header className="border-b border-[#202020] bg-[#0d0d0d]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" aria-label="Back to dashboard" className="grid h-9 w-9 place-items-center rounded-lg border border-[#292929] text-gray-400 hover:bg-[#191919] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]">
+            <Link href="/dashboard" aria-label="Back to dashboard" className="grid h-9 w-9 place-items-center rounded-lg border border-[#292929] text-gray-400 hover:bg-[#191919] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
             <div>
@@ -79,7 +79,7 @@ export function AccessControl() {
               <p className="text-xs text-gray-500">MU One private beta</p>
             </div>
           </div>
-          <button type="button" onClick={() => void load()} disabled={loading} className="flex items-center gap-2 rounded-lg border border-[#292929] px-3 py-2 text-xs text-gray-300 hover:bg-[#191919] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]">
+          <button type="button" onClick={() => void load()} disabled={loading} className="flex items-center gap-2 rounded-lg border border-[#292929] px-3 py-2 text-xs text-gray-300 hover:bg-[#191919] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
           </button>
         </div>
@@ -95,8 +95,8 @@ export function AccessControl() {
           <label htmlFor="grant-email" className="text-sm font-semibold">Grant access by email</label>
           <p className="mt-1 text-xs text-gray-500">Only @mastersunion.org addresses are accepted.</p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <input id="grant-email" type="email" required pattern=".+@mastersunion\.org" value={email} onChange={event => setEmail(event.target.value)} placeholder="student@mastersunion.org" className="min-w-0 flex-1 rounded-lg border border-[#303030] bg-[#0b0b0b] px-3 py-2.5 text-sm outline-none placeholder:text-gray-600 focus:border-[#f7d344] focus:ring-1 focus:ring-[#f7d344]" />
-            <button type="submit" disabled={Boolean(workingEmail)} className="flex items-center justify-center gap-2 rounded-lg bg-[#f7d344] px-5 py-2.5 text-sm font-semibold text-black hover:bg-[#ffe36c] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212]">
+            <input id="grant-email" type="email" required pattern=".+@mastersunion\.org" value={email} onChange={event => setEmail(event.target.value)} placeholder="student@mastersunion.org" className="min-w-0 flex-1 rounded-lg border border-[#303030] bg-[#0b0b0b] px-3 py-2.5 text-sm outline-none placeholder:text-gray-600 focus:border-white/20 focus:ring-1 focus:ring-white/20" />
+            <button type="submit" disabled={Boolean(workingEmail)} className="flex items-center justify-center gap-2 rounded-lg bg-[#f7d344] px-5 py-2.5 text-sm font-semibold text-black hover:bg-[#ffe36c] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212]">
               <UserPlus className="h-4 w-4" aria-hidden="true" /> Grant access
             </button>
           </div>

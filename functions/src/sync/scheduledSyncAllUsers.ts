@@ -39,7 +39,7 @@ export const scheduledSyncAllUsers = onSchedule(
     );
     const cutoffTimestamp = admin.firestore.Timestamp.fromDate(cutoffTime);
 
-    let uids: string[] = [];
+    let syncTargets: Array<{ uid: string; email: string; syncType: "full" | "calendar_only" }> = [];
     try {
       // Filter the small connected-user set in memory. This avoids a fragile
       // composite-index dependency and handles missing/null lastSyncAt values.
@@ -61,19 +61,37 @@ export const scheduledSyncAllUsers = onSchedule(
         .sort((a, b) => a.lastSyncMs - b.lastSyncMs);
 
       const nonAdmin = eligibleUsers.filter(user => user.email && user.email !== PLATFORM_ADMIN_EMAIL);
-      const accessSnapshots = nonAdmin.length
-        ? await db.getAll(...nonAdmin.map(user => db.collection("platformAccess").doc(user.email)))
-        : [];
+      const [accessSnapshots, waitlistSnapshots] = await Promise.all([
+        nonAdmin.length
+          ? db.getAll(...nonAdmin.map(user => db.collection("platformAccess").doc(user.email)))
+          : Promise.resolve([]),
+        nonAdmin.length
+          ? db.getAll(...nonAdmin.map(user => db.collection("platformWaitlist").doc(user.email)))
+          : Promise.resolve([]),
+      ]);
+
       const grantedEmails = new Set(
         accessSnapshots
           .filter(access => access.exists && access.get("status") === "granted")
           .map(access => access.id)
       );
 
-      uids = eligibleUsers
-        .filter(user => user.email === PLATFORM_ADMIN_EMAIL || grantedEmails.has(user.email))
-        .slice(0, MAX_USERS_PER_RUN)
-        .map(user => user.uid);
+      const consentedWaitlistEmails = new Set(
+        waitlistSnapshots
+          .filter(waitlist => waitlist.exists && waitlist.get("calendarConsent") === true)
+          .map(waitlist => waitlist.id)
+      );
+
+      const targets: Array<{ uid: string; email: string; syncType: "full" | "calendar_only" }> = [];
+      for (const user of eligibleUsers) {
+        if (user.email === PLATFORM_ADMIN_EMAIL || grantedEmails.has(user.email)) {
+          targets.push({ uid: user.uid, email: user.email, syncType: "full" });
+        } else if (consentedWaitlistEmails.has(user.email)) {
+          targets.push({ uid: user.uid, email: user.email, syncType: "calendar_only" });
+        }
+      }
+
+      syncTargets = targets.slice(0, MAX_USERS_PER_RUN);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       // Log job-level error without sensitive data
@@ -81,28 +99,73 @@ export const scheduledSyncAllUsers = onSchedule(
       return;
     }
 
-    if (uids.length === 0) {
+    if (syncTargets.length === 0) {
       console.info("[scheduledSync] No users eligible for sync.");
       return;
     }
 
-    console.info(`[scheduledSync] Syncing ${uids.length} users.`);
+    console.info(
+      `[scheduledSync] Syncing ${syncTargets.length} users (${syncTargets.filter(t => t.syncType === "full").length} full, ${syncTargets.filter(t => t.syncType === "calendar_only").length} calendar_only).`
+    );
 
     // Process each user
     const results = await Promise.allSettled(
-      uids.map(async (uid) => {
+      syncTargets.map(async (target) => {
         try {
           const now = admin.firestore.Timestamp.now();
 
           // Optimistically mark lastSyncAt to prevent double-sync
-          await db.collection("users").doc(uid).update({
+          await db.collection("users").doc(target.uid).update({
             "googleConnection.lastSyncAt": now,
           });
 
+          if (target.syncType === "calendar_only") {
+            // STRICT ISOLATION INVARIANT: For waitlisted contributors, execute ONLY syncUserCalendar.
+            // DO NOT execute syncUserMail or syncUserGoogleTasks under any circumstances.
+            const calResult = await syncUserCalendar(target.uid, SYNC_DAYS);
+            const sourceHealth: Record<string, string> = {
+              calendar: calResult.warnings.length > 0 ? "warning" : "ok",
+            };
+            const overallStatus = sourceHealth["calendar"];
+            const nowIso = now.toDate().toISOString();
+            const nextSyncDate = new Date(Date.now() + 5 * 60 * 1000);
+            const nextSyncIso = nextSyncDate.toISOString();
+
+            await db
+              .collection("users")
+              .doc(target.uid)
+              .collection("dashboard")
+              .doc("current")
+              .set(
+                {
+                  sourceHealth,
+                  sync: {
+                    status: overallStatus,
+                    lastCompletedAt: now,
+                    nextScheduledSyncAt: admin.firestore.Timestamp.fromDate(nextSyncDate),
+                  },
+                  syncStatus: {
+                    syncing: false,
+                    lastSyncedAt: nowIso,
+                    nextSyncAt: nextSyncIso,
+                    sourceHealth: {
+                      calendar: { status: sourceHealth["calendar"], lastSyncedAt: nowIso },
+                    },
+                  },
+                  syncedAt: nowIso,
+                  updatedAt: now,
+                },
+                { merge: true }
+              );
+
+            return { uid: target.uid, status: overallStatus };
+          }
+
+          // Full sync for admitted users and admin
           const [calResult, mailResult, tasksResult] = await Promise.allSettled([
-            syncUserCalendar(uid, SYNC_DAYS),
-            syncUserMail(uid),
-            syncUserGoogleTasks(uid),
+            syncUserCalendar(target.uid, SYNC_DAYS),
+            syncUserMail(target.uid),
+            syncUserGoogleTasks(target.uid),
           ]);
 
           const sourceHealth: Record<string, string> = {};
@@ -139,7 +202,7 @@ export const scheduledSyncAllUsers = onSchedule(
 
           await db
             .collection("users")
-            .doc(uid)
+            .doc(target.uid)
             .collection("dashboard")
             .doc("current")
             .set(
@@ -166,11 +229,11 @@ export const scheduledSyncAllUsers = onSchedule(
               { merge: true }
             );
 
-          return { uid, status: overallStatus };
+          return { uid: target.uid, status: overallStatus };
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[scheduledSync] uid=${uid} failed: ${msg}`);
-          return { uid, status: "error" };
+          console.error(`[scheduledSync] uid=${target.uid} failed: ${msg}`);
+          return { uid: target.uid, status: "error" };
         }
       })
     );

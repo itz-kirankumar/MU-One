@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, CalendarRange, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, CalendarRange, ChevronLeft, ChevronRight, X, Columns } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CalendarEventCard } from '@/components/dashboard/CalendarEventCard';
 import { ExpandableText } from '@/components/dashboard/ExpandableText';
+import { CrossSectionComparison } from '@/components/dashboard/CrossSectionComparison';
 import { getCalendarEventDetails } from '@/lib/calendarEventDetails';
 import { subscribeToSharedTimetable } from '@/lib/firestore';
 import type { NormalizedEvent } from '@/types';
@@ -95,7 +96,7 @@ function eventSection(event: NormalizedEvent): string | null {
 function CalendarPill({ event, onSelect }: { event: NormalizedEvent; onSelect: () => void }) {
   const details = getCalendarEventDetails(event);
   return (
-    <button type="button" onClick={onSelect} title={`${details.course}: ${details.title} · ${details.time}`} className="flex h-6 w-full items-center gap-1.5 rounded-md border border-[#383838] bg-[#202020] px-1.5 text-left text-[10px] text-gray-200 transition-colors hover:border-[#675a2b] hover:bg-[#28251a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]">
+    <button type="button" onClick={onSelect} title={`${details.course}: ${details.title} · ${details.time}`} className="flex h-6 w-full items-center gap-1.5 rounded-md border border-[#383838] bg-[#202020] px-1.5 text-left text-[10px] text-gray-200 transition-colors hover:border-[#675a2b] hover:bg-[#28251a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#f7d344]" aria-hidden="true" />
       <span className="truncate">{details.course}</span>
     </button>
@@ -130,6 +131,7 @@ export function AgendaList() {
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [sharedEvents, setSharedEvents] = useState<NormalizedEvent[]>([]);
   const [sharedLoading, setSharedLoading] = useState(true);
   const [sharedError, setSharedError] = useState('');
@@ -271,9 +273,9 @@ export function AgendaList() {
       <div className="border-b border-[#242424] px-3 py-3 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => navigate(-1)} aria-label={`Previous ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" onClick={() => navigate(-1)} aria-label={`Previous ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"><ChevronLeft className="h-4 w-4" /></button>
             <button type="button" onClick={goToday} title="Go to today" className="min-w-40 rounded-md bg-[#1d1d1d] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#252525]">{headerLabel(selectedDate, view, rangeStart, rangeEnd)}</button>
-            <button type="button" onClick={() => navigate(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" onClick={() => navigate(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"><ChevronRight className="h-4 w-4" /></button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setRangeOpen(value => !value)} aria-expanded={rangeOpen} className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${view === 'range' ? 'border-[#6c5e28] bg-[#302a15] text-[#f7d344]' : 'border-[#303030] bg-[#101010] text-gray-300 hover:text-white'}`}><CalendarRange className="h-3.5 w-3.5" />Custom range</button>
@@ -292,12 +294,22 @@ export function AgendaList() {
 
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#222] pt-3">
           <label htmlFor="calendar-subject-filter" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Subject</label>
-          <select id="calendar-subject-filter" value={subjectFilter} onChange={event => { setSubjectFilter(event.target.value); setSectionFilter('all'); setSelectedEvent(null); }} className="h-9 min-w-44 max-w-64 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-[#f7d344]">
+          <select id="calendar-subject-filter" value={subjectFilter} onChange={event => { setSubjectFilter(event.target.value); setSelectedEvent(null); }} className="h-9 min-w-44 max-w-64 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-white/20">
             <option value="all">All subjects</option>
             {subjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
           </select>
+          <button
+            type="button"
+            onClick={() => setIsComparisonOpen(true)}
+            disabled={subjects.length === 0 && sharedEvents.length === 0}
+            title="Compare timetable across Sections A–H"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs font-medium text-gray-300 transition-colors hover:border-[#6c5e28] hover:bg-[#1a170d] hover:text-[#f7d344] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Columns className="h-3.5 w-3.5 text-[#d8bd4d]" />
+            <span>Compare across sections</span>
+          </button>
           <label htmlFor="calendar-section-filter" className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Section</label>
-          <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); window.localStorage.setItem(SECTION_KEY, event.target.value); setSelectedEvent(null); }} className="h-9 min-w-32 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-[#f7d344]">
+          <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); window.localStorage.setItem(SECTION_KEY, event.target.value); setSelectedEvent(null); }} className="h-9 min-w-32 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-white/20">
             <option value="all">All sections</option>
             {SECTIONS.map(section => <option key={section} value={section}>Section {section}</option>)}
             <option value="personal">Personal only</option>
@@ -337,8 +349,8 @@ export function AgendaList() {
             const key = dateKey(day);
             const dayEvents = grouped.get(key) ?? [];
             const outsideMonth = view === 'month' && day.getMonth() !== selectedDate.getMonth();
-            const visibleLimit = view === 'month' ? 3 : 6;
-            return <div key={key} className={`min-h-24 border-b border-r border-[#282828] p-1.5 ${key === todayKey ? 'bg-[#242015]' : outsideMonth ? 'bg-[#0e0e0e]' : 'bg-[#151515]'}`}>
+            const visibleLimit = view === 'month' ? 2 : 5;
+            return <div key={key} className={`min-h-[64px] border-b border-r border-[#282828] p-1.5 ${key === todayKey ? 'bg-[#242015]' : outsideMonth ? 'bg-[#0e0e0e]' : 'bg-[#151515]'}`}>
               <div className={`mb-1 text-right text-[10px] font-medium ${key === todayKey ? 'text-[#f7d344]' : outsideMonth ? 'text-gray-700' : 'text-gray-400'}`}>{day.getDate()}</div>
               <div className="space-y-1">
                 {dayEvents.slice(0, visibleLimit).map((event, index) => <CalendarPill key={eventKey(event, index)} event={event} onSelect={() => setSelectedEvent(event)} />)}
@@ -353,6 +365,13 @@ export function AgendaList() {
         <div className="mb-2 flex items-center justify-between"><p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Event details</p><button type="button" onClick={() => setSelectedEvent(null)} aria-label="Close event details" className="grid h-7 w-7 place-items-center rounded-md text-gray-500 hover:bg-[#222] hover:text-white"><X className="h-3.5 w-3.5" /></button></div>
         <CalendarEventCard event={selectedEvent} />
       </div>}
+
+      <CrossSectionComparison
+        isOpen={isComparisonOpen}
+        onClose={() => setIsComparisonOpen(false)}
+        currentSubject={subjectFilter === 'all' ? (subjects[0] || '') : subjectFilter}
+        sharedEvents={sharedEvents}
+      />
     </section>
   );
 }

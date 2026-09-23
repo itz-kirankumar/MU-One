@@ -87,6 +87,7 @@ export interface PlatformAccessStatus {
   waitlistStatus: 'waiting' | 'approved' | null;
   program?: string | null;
   section?: string | null;
+  calendarConsent?: boolean;
 }
 
 export interface AccessEntry {
@@ -111,6 +112,18 @@ export interface AccessListResult {
 export async function getPlatformAccess(): Promise<PlatformAccessStatus> {
   const fn = httpsCallable<{ action: 'status' }, PlatformAccessStatus>(functions, 'accessPortal');
   const result = await fn({ action: 'status' });
+  return result.data;
+}
+
+/**
+ * Update calendar consent for waitlist users.
+ */
+export async function updateCalendarConsent(consent: boolean): Promise<{ success: boolean; calendarConsent: boolean }> {
+  const fn = httpsCallable<
+    { action: 'updateCalendarConsent'; consent: boolean },
+    { success: boolean; calendarConsent: boolean }
+  >(functions, 'accessPortal');
+  const result = await fn({ action: 'updateCalendarConsent', consent });
   return result.data;
 }
 

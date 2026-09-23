@@ -17,6 +17,14 @@
       ]
     },
     {
+      "collectionGroup": "surveys",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "personalTasks",
       "queryScope": "COLLECTION",
       "fields": [
@@ -47,6 +55,14 @@
       "fields": [
         { "fieldPath": "isDeadlineSignal", "order": "DESCENDING" },
         { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sharedCalendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sectionCode", "order": "ASCENDING" },
+        { "fieldPath": "startIso", "order": "ASCENDING" }
       ]
     }
   ],

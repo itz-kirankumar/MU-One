@@ -17,12 +17,13 @@ import {
   SlidersHorizontal,
   Mail,
   Shield,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
 import { Logo } from '@/components/ui/Logo';
 
-export type SidebarTab = 'dashboard' | 'email' | 'surveys' | 'email_qa' | 'pitch' | 'admin';
+export type SidebarTab = 'dashboard' | 'email' | 'surveys' | 'email_qa' | 'pitch' | 'admin' | 'announcements';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -132,6 +133,17 @@ export function Sidebar({
         </button>
         {access?.isAdmin && (
           <button
+            title="Announcements"
+            aria-label="Announcements"
+            onClick={() => { handleTabClick('announcements'); if (isMobile) onMobileClose(); }}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'announcements' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+          >
+            <Megaphone className={`h-4 w-4 flex-shrink-0 ${activeTab === 'announcements' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+            {(!collapsed || isMobile) && <span>Announcements</span>}
+          </button>
+        )}
+        {access?.isAdmin && (
+          <button
             title="Access Control"
             aria-label="Access Control"
             onClick={() => { handleTabClick('admin'); if (isMobile) onMobileClose(); }}
@@ -218,7 +230,7 @@ export function Sidebar({
         <button
           onClick={onToggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="ml-auto flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-[#1A1A1A] hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+          className="ml-auto flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-[#1A1A1A] hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -272,7 +284,7 @@ export function Sidebar({
         <button
           onClick={handleSignOut}
           disabled={signingOut}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-gray-500 hover:bg-[#1A1A1A] hover:text-red-400 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-gray-500 hover:bg-[#1A1A1A] hover:text-red-400 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
         >
           <LogOut className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
           {!collapsed && <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>}

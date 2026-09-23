@@ -12,7 +12,7 @@ import {
   TOKEN_ENCRYPTION_KEY,
 } from "../config/params";
 import { buildDashboardRedirect } from "./oauthRedirect";
-import { PLATFORM_ADMIN_EMAIL, requirePlatformAccess } from "../utils/domainCheck";
+import { PLATFORM_ADMIN_EMAIL, authenticatedEmail, requireMuDomain } from "../utils/domainCheck";
 
 const REQUIRED_SCOPES = [
   // Read/write: createCalendarEvent needs write access, so requesting
@@ -37,9 +37,31 @@ function buildOAuth2Client(): OAuth2Client {
 /**
  * Callable function: returns the Google OAuth authorization URL.
  * The client redirects the user to this URL to begin the OAuth flow.
+ * Allowed for users with platform access OR on platformWaitlist with calendarConsent === true.
  */
 export const getGoogleAuthUrl = onCall({ secrets: [GOOGLE_CLIENT_SECRET] }, async (request) => {
-  const uid = await requirePlatformAccess(request);
+  const uid = requireMuDomain(request);
+  const email = authenticatedEmail(request);
+  const db = getDb();
+
+  let isAuthorized = email === PLATFORM_ADMIN_EMAIL;
+  if (!isAuthorized) {
+    const [accessDoc, waitlistDoc] = await Promise.all([
+      db.collection("platformAccess").doc(email).get(),
+      db.collection("platformWaitlist").doc(email).get(),
+    ]);
+
+    const hasAccess = accessDoc.exists && accessDoc.get("status") === "granted";
+    const isConsentedWaitlist = waitlistDoc.exists && waitlistDoc.get("calendarConsent") === true;
+    isAuthorized = hasAccess || isConsentedWaitlist;
+  }
+
+  if (!isAuthorized) {
+    throw new HttpsError(
+      "permission-denied",
+      "MU One is currently in private beta. Join the waitlist and consent to calendar sync to connect Google Calendar."
+    );
+  }
 
   const oauth2Client = buildOAuth2Client();
 
@@ -64,7 +86,7 @@ export const getGoogleAuthUrl = onCall({ secrets: [GOOGLE_CLIENT_SECRET] }, asyn
  *  3. Verify tokeninfo email ends with @mastersunion.org
  *  4. Encrypt and store refresh token
  *  5. Update user profile in Firestore
- *  6. Redirect to dashboard
+ *  6. Redirect to dashboard (or waitlist gate with ?google=connected for waitlisted contributors)
  */
 export const connectGoogleAccount = onRequest({
   secrets: [GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY],
@@ -126,9 +148,20 @@ export const connectGoogleAccount = onRequest({
       return;
     }
 
-    if (firebaseEmail !== PLATFORM_ADMIN_EMAIL) {
-      const access = await getDb().collection("platformAccess").doc(firebaseEmail).get();
-      if (!access.exists || access.get("status") !== "granted") {
+    const db = getDb();
+    let hasPlatformAccess = firebaseEmail === PLATFORM_ADMIN_EMAIL;
+    let isConsentedWaitlist = false;
+
+    if (!hasPlatformAccess) {
+      const [accessDoc, waitlistDoc] = await Promise.all([
+        db.collection("platformAccess").doc(firebaseEmail).get(),
+        db.collection("platformWaitlist").doc(firebaseEmail).get(),
+      ]);
+
+      hasPlatformAccess = accessDoc.exists && accessDoc.get("status") === "granted";
+      isConsentedWaitlist = waitlistDoc.exists && waitlistDoc.get("calendarConsent") === true;
+
+      if (!hasPlatformAccess && !isConsentedWaitlist) {
         res.redirect(
           buildDashboardRedirect(DASHBOARD_URL.value(), "error", "access_not_granted")
         );
@@ -156,7 +189,6 @@ export const connectGoogleAccount = onRequest({
     // Update user profile. Fields are written flat to match the client's
     // UserProfile type, and googleConnection.connected must be set true or the
     // dashboard can never tell that the account was linked.
-    const db = getDb();
     await db
       .collection("users")
       .doc(uid)
@@ -179,6 +211,15 @@ export const connectGoogleAccount = onRequest({
         },
         { merge: true }
       );
+
+    if (!hasPlatformAccess && isConsentedWaitlist) {
+      // Consented waitlist contributor: Redirect back to waitlist gate with ?google=connected
+      // CRITICAL INVARIANT: NEVER grant platformAccess or create platformAccess record!
+      const waitlistRedirect = new URL(DASHBOARD_URL.value() || "https://muone.live/dashboard");
+      waitlistRedirect.searchParams.set("google", "connected");
+      res.redirect(waitlistRedirect.toString());
+      return;
+    }
 
     res.redirect(buildDashboardRedirect(DASHBOARD_URL.value(), "success"));
   } catch (err: unknown) {

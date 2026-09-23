@@ -205,14 +205,14 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
         <div className="flex gap-2 justify-end">
           <button
             onClick={() => setShowConfirm(false)}
-            className="rounded-md border border-[#2A2A2A] px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+            className="rounded-md border border-[#2A2A2A] px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
           >
             Cancel
           </button>
           <button
             onClick={handleDisconnect}
             disabled={disconnecting}
-            className="flex items-center gap-1.5 rounded-md bg-red-900/60 border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-300 disabled:opacity-50 hover:bg-red-900/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344]"
+            className="flex items-center gap-1.5 rounded-md bg-red-900/60 border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-300 disabled:opacity-50 hover:bg-red-900/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
           >
             {disconnecting && <Loader2 className="h-3 w-3 animate-spin" />}
             Yes, disconnect
@@ -288,7 +288,7 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
             ) : (
               <button
                 onClick={() => setShowConfirm(true)}
-                className="text-[11px] text-red-400/80 hover:text-red-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded"
+                className="text-[11px] text-red-400/80 hover:text-red-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
               >
                 Disconnect Google Account
               </button>
@@ -324,7 +324,7 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
             <>
               <button
                 onClick={() => setShowConfirm(true)}
-                className="text-sm text-red-400 hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] rounded"
+                className="text-sm text-red-400 hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
               >
                 Disconnect Google Account
               </button>

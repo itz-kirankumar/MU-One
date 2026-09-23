@@ -78,7 +78,7 @@ export function ConnectGoogleBanner() {
         <button
           onClick={handleConnect}
           disabled={connecting}
-          className="flex flex-shrink-0 items-center justify-center gap-2 rounded-md bg-[#f7d344] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#ffe066] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f7d344] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
+          className="flex flex-shrink-0 items-center justify-center gap-2 rounded-md bg-[#f7d344] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#ffe066] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
         >
           {connecting ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

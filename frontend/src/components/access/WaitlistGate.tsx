@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { LogOut, Mail, Sparkles, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogOut, Mail, Sparkles, Check, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { joinPlatformWaitlist } from '@/lib/functions';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { joinPlatformWaitlist, getGoogleAuthUrl } from '@/lib/functions';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Logo } from '@/components/ui/Logo';
 
@@ -25,6 +27,63 @@ export function WaitlistGate() {
   const [otherProgram, setOtherProgram] = useState('');
   const [section, setSection] = useState('');
   const [requestedFeatures, setRequestedFeatures] = useState('');
+
+  const [consent, setConsent] = useState(() => {
+    return Boolean((access as unknown as { calendarConsent?: boolean })?.calendarConsent);
+  });
+  const [updatingConsent, setUpdatingConsent] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    if ((access as unknown as { calendarConsent?: boolean })?.calendarConsent !== undefined) {
+      setConsent(Boolean((access as unknown as { calendarConsent?: boolean })?.calendarConsent));
+    }
+  }, [access]);
+
+  const [googleConnected, setGoogleConnected] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('google') === 'connected' || params.get('google_connect') === 'success';
+    }
+    return false;
+  });
+
+  async function handleToggleConsent(e: React.ChangeEvent<HTMLInputElement>) {
+    const nextConsent = e.target.checked;
+    setConsent(nextConsent);
+    setUpdatingConsent(true);
+    setError('');
+    try {
+      const updateConsentFn = httpsCallable<
+        { action: 'updateCalendarConsent'; consent: boolean },
+        { success: boolean; calendarConsent: boolean }
+      >(functions, 'accessPortal');
+      await updateConsentFn({ action: 'updateCalendarConsent', consent: nextConsent });
+      await refreshAccess();
+    } catch (err) {
+      setConsent(!nextConsent);
+      setError(err instanceof Error ? err.message : 'Failed to update calendar consent.');
+    } finally {
+      setUpdatingConsent(false);
+    }
+  }
+
+  async function handleConnectGoogle() {
+    if (!consent) return;
+    setConnecting(true);
+    setError('');
+    try {
+      const { authUrl } = await getGoogleAuthUrl();
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        throw new Error('No authorization URL returned.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to connect Google Calendar. Please try again.');
+      setConnecting(false);
+    }
+  }
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -76,12 +135,57 @@ export function WaitlistGate() {
         </div>
 
         {joined ? (
-          <div aria-live="polite" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10 text-green-400 border border-green-500/20">
-              <Check className="h-6 w-6" strokeWidth={2.5} />
+          <div aria-live="polite" className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+            <div>
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10 text-green-400 border border-green-500/20">
+                <Check className="h-6 w-6" strokeWidth={2.5} />
+              </div>
+              <h1 id="waitlist-title" className="text-2xl font-semibold tracking-tight text-white mb-2">You're on the waitlist</h1>
+              <p className="text-[14px] leading-relaxed text-gray-400">{CONFIRMATION}</p>
             </div>
-            <h1 id="waitlist-title" className="text-2xl font-semibold tracking-tight text-white mb-3">You're on the waitlist</h1>
-            <p className="text-[15px] leading-relaxed text-gray-400">{CONFIRMATION}</p>
+
+            <div className="rounded-2xl border border-[#222] bg-[#121212] p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="calendar-consent"
+                  checked={consent}
+                  onChange={handleToggleConsent}
+                  disabled={updatingConsent}
+                  className="mt-1 h-4 w-4 rounded border-[#333] bg-[#1a1a1a] text-[#f7d344] focus:ring-white/20 focus:ring-offset-0 cursor-pointer"
+                />
+                <label htmlFor="calendar-consent" className="text-sm font-medium text-gray-200 cursor-pointer select-none">
+                  Allow MU One to sync my academic timetable for Section A–H
+                </label>
+              </div>
+
+              <p className="text-xs leading-relaxed text-gray-400">
+                Your calendar will be sanitized to share only section timetable events. Personal meetings and reminders are never shared, and your account remains on the waitlist.
+              </p>
+
+              {googleConnected && (
+                <div className="flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-950/20 px-3.5 py-2.5 text-xs font-medium text-green-400">
+                  <Check className="h-4 w-4 shrink-0 text-green-400" />
+                  <span>Google Calendar connected. Section timetable events will sync automatically.</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleConnectGoogle}
+                disabled={!consent || connecting}
+                className="group flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition-all hover:bg-gray-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {connecting ? (
+                  <LoadingSpinner size="sm" label="Connecting..." />
+                ) : (
+                  <>
+                    <Calendar className="h-4 w-4 transition-transform group-hover:scale-110" />
+                    {googleConnected ? 'Reconnect Google Calendar' : 'Connect Google Calendar'}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

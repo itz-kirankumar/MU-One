@@ -29,7 +29,7 @@ export function ExpandableText({ text, maxChars = 110, className = '' }: Expanda
           type="button"
           onClick={() => setExpanded(value => !value)}
           aria-expanded={expanded}
-          className="inline font-semibold text-[#d8bd4d] hover:text-[#f7d344] hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#f7d344]"
+          className="inline font-semibold text-[#d8bd4d] hover:text-[#f7d344] hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
         >
           {expanded ? 'Show less' : 'Show more'}
         </button>

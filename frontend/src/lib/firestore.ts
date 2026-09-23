@@ -93,7 +93,19 @@ export function subscribeToSharedTimetable(
   );
   return onSnapshot(
     ref,
-    snapshot => cb(snapshot.docs.map(item => ({ id: item.id, ...item.data() } as NormalizedEvent))),
+    snapshot =>
+      cb(
+        snapshot.docs.map(item => {
+          const data = item.data() as Record<string, any>;
+          return {
+            id: item.id,
+            ...data,
+            sectionCode: data.sectionCode || data.section || '',
+            location: data.location || data.venue || '',
+            description: data.description || data.sessionDescription || data.descriptionExcerpt || '',
+          } as NormalizedEvent;
+        })
+      ),
     error => {
       console.warn('Firestore shared timetable listener:', error.message);
       onError?.(error);
@@ -217,3 +229,34 @@ export async function updateMailWorkspace(uid: string, mailWorkspace: MailWorksp
   const ref = doc(db, 'users', uid);
   await setDoc(ref, { mailWorkspace, updatedAt: new Date().toISOString() }, { merge: true });
 }
+
+import type { Announcement } from '@/types';
+
+export function subscribeToAnnouncements(cb: (announcements: Announcement[]) => void): () => void {
+  const q = query(collection(db, 'announcements'), orderBy('deadlineIso', 'asc'));
+  return onSnapshot(q, (snap) => {
+    const ann: Announcement[] = [];
+    snap.forEach((docSnap) => ann.push({ id: docSnap.id, ...docSnap.data() } as Announcement));
+    cb(ann);
+  }, (err) => {
+    console.warn('Subscription permission denied (Announcements)', err.message);
+    cb([]);
+  });
+}
+
+export async function createAnnouncement(announcement: Omit<Announcement, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
+  const ref = doc(collection(db, 'announcements'));
+  const now = new Date().toISOString();
+  await setDoc(ref, { ...announcement, id: ref.id, createdAt: now, updatedAt: now });
+}
+
+export async function updateAnnouncement(id: string, updates: Partial<Omit<Announcement, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
+  const ref = doc(db, 'announcements', id);
+  await setDoc(ref, { ...updates, updatedAt: new Date().toISOString() }, { merge: true });
+}
+
+export async function deleteAnnouncement(id: string): Promise<void> {
+  const ref = doc(db, 'announcements', id);
+  await deleteDoc(ref);
+}
+
