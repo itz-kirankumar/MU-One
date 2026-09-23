@@ -125,13 +125,14 @@ export function AdminAccessControl() {
           <div className="border-b border-[#222] p-4 flex items-center justify-between">
             <h2 className="font-semibold text-white flex items-center gap-2">
               <Clock className="h-4 w-4 text-yellow-500" />
-              Waitlist ({data?.waitlist.length ?? 0})
+              Waitlist ({data?.waitlist.filter(u => u.status !== 'approved').length ?? 0})
             </h2>
             <button
               onClick={() => {
                 if (!data) return;
                 const headers = ['Email', 'Name', 'Joined At', 'Program', 'Section', 'Requested Features'];
-                const rows = data.waitlist.map(u => [
+                const pendingUsers = data.waitlist.filter(u => u.status !== 'approved');
+                const rows = pendingUsers.map(u => [
                   u.email,
                   u.displayName || '',
                   u.joinedAt || '',
@@ -158,11 +159,11 @@ export function AdminAccessControl() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-            {data?.waitlist.length === 0 ? (
+            {!data?.waitlist || data.waitlist.filter(u => u.status !== 'approved').length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-8">No users on the waitlist.</p>
             ) : (
               <ul className="space-y-3">
-                {data?.waitlist.map((user) => (
+                {data.waitlist.filter(u => u.status !== 'approved').map((user) => (
                   <li key={user.email} className="flex flex-col gap-2 rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] p-3">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
