@@ -250,32 +250,54 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   const lastSyncAttemptRef = useRef<number>(0);
   const isSyncingRef = useRef<boolean>(false);
-  const initialSyncDoneRef = useRef<boolean>(false);
+  const syncStatus = deriveSyncStatus(dashboardData, profile, googleConnected);
 
   const triggerSync = useCallback(
     async (options?: { silent?: boolean; force?: boolean }) => {
+      if (!user) return;
       const silent = options?.silent ?? false;
       const force = options?.force ?? false;
       const now = Date.now();
-      const minInterval = force ? 15_000 : 45_000;
+      const minInterval = force ? 15_000 : 60_000;
+      const lastCompletedAt = Date.parse(syncStatus?.lastSyncedAt ?? '');
+      const freshnessWindow = force ? 15_000 : 5 * 60_000;
 
-      // Debounce & rate-limit check
-      if (now - lastSyncAttemptRef.current < minInterval) {
+      // The scheduled server sync also updates this timestamp. Do not re-sync
+      // just because this tab was focused or opened after another tab synced.
+      if (Number.isFinite(lastCompletedAt) && now - lastCompletedAt < freshnessWindow) {
+        if (!silent && force) throw new Error('Synced recently. Please wait a moment.');
+        return;
+      }
+
+      const storageKey = `muone.dashboardSyncAttempt.${user.uid}`;
+      let lastAttempt = lastSyncAttemptRef.current;
+      try {
+        lastAttempt = Math.max(lastAttempt, Number(localStorage.getItem(storageKey)) || 0);
+      } catch {
+        // Storage can be unavailable in private browsing; the in-tab guard still works.
+      }
+
+      if (now - lastAttempt < minInterval) {
         if (!silent) {
-          const waitSecs = Math.ceil((minInterval - (now - lastSyncAttemptRef.current)) / 1000);
+          const waitSecs = Math.ceil((minInterval - (now - lastAttempt)) / 1000);
           throw new Error(`Synced recently. Please wait ${waitSecs}s.`);
         }
         return;
       }
 
-      if (isSyncingRef.current) return;
+      if (isSyncingRef.current || syncStatus?.syncing) return;
 
       isSyncingRef.current = true;
       setIsAutoSyncing(true);
       lastSyncAttemptRef.current = now;
+      try {
+        localStorage.setItem(storageKey, String(now));
+      } catch {
+        // See the storage fallback above.
+      }
 
       try {
-        await syncDashboard();
+        await syncDashboard(force);
       } catch (err: unknown) {
         if (!silent) {
           throw err;
@@ -288,21 +310,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setIsAutoSyncing(false);
       }
     },
-    []
+    [user, syncStatus?.lastSyncedAt, syncStatus?.syncing]
   );
-
-  const syncStatus = deriveSyncStatus(dashboardData, profile, googleConnected);
 
   // 1. Auto-sync on window focus / tab visibility change (e.g. user added event or received email)
   useEffect(() => {
-    if (!user || !googleConnected) return;
+    if (!user || !googleConnected || loading) return;
 
     function handleActivity() {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        const timeSinceLast = Date.now() - lastSyncAttemptRef.current;
-        if (timeSinceLast >= 45_000) {
-          triggerSync({ silent: true }).catch(() => {});
-        }
+        triggerSync({ silent: true }).catch(() => {});
       }
     }
 
@@ -313,42 +330,31 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', handleActivity);
       document.removeEventListener('visibilitychange', handleActivity);
     };
-  }, [user, googleConnected, triggerSync]);
+  }, [user, googleConnected, loading, triggerSync]);
 
   // 2. Periodic background auto-sync every 2.5 minutes while the dashboard is open
   useEffect(() => {
-    if (!user || !googleConnected) return;
+    if (!user || !googleConnected || loading) return;
 
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        const timeSinceLast = Date.now() - lastSyncAttemptRef.current;
-        if (timeSinceLast >= 60_000) {
-          triggerSync({ silent: true }).catch(() => {});
-        }
+        triggerSync({ silent: true }).catch(() => {});
       }
     }, 150_000);
 
     return () => clearInterval(interval);
-  }, [user, googleConnected, triggerSync]);
+  }, [user, googleConnected, loading, triggerSync]);
 
-  // 3. Initial mount check: auto-sync if data is missing or older than 3 minutes
+  // 3. Initial mount check: wait for the first dashboard snapshot before deciding.
   useEffect(() => {
-    if (!user || !googleConnected) return;
-    if (initialSyncDoneRef.current) return;
-    initialSyncDoneRef.current = true;
+    if (!user || !googleConnected || loading) return;
 
     const timer = setTimeout(() => {
-      const lastSync = syncStatus?.lastSyncedAt
-        ? new Date(syncStatus.lastSyncedAt).getTime()
-        : 0;
-      const isStale = isNaN(lastSync) || Date.now() - lastSync > 3 * 60 * 1000;
-      if (isStale) {
-        triggerSync({ silent: true }).catch(() => {});
-      }
+      triggerSync({ silent: true }).catch(() => {});
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [user, googleConnected, syncStatus?.lastSyncedAt, triggerSync]);
+  }, [user, googleConnected, loading, triggerSync]);
 
   // Completed mail tracking (local storage + Firestore profile sync)
   const [completedMailIds, setCompletedMailIds] = useState<string[]>(() => {

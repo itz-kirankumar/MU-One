@@ -16,7 +16,7 @@ type SourceHealth = "ok" | "warning" | "error";
 /**
  * Callable: triggers a full dashboard sync for the authenticated user.
  *
- * - Rate-limited: at most 1 call per 60 seconds per user (15s if force=true).
+ * - Recently completed automatic syncs are no-ops; forced syncs have a 15s cooldown.
  * - Runs calendar, mail, and task syncs in parallel.
  * - Retains last successful data if a source fails.
  * - Updates dashboard/current.sync with live status.
@@ -52,6 +52,9 @@ export const syncDashboard = onCall(
           const secondsRemaining = Math.ceil(
             (minCooldown - (Date.now() - lastAt.getTime())) / 1000
           );
+          if (!isForce) {
+            return { status: "up_to_date", retryAfterSeconds: secondsRemaining };
+          }
           throw new HttpsError(
             "resource-exhausted",
             `Sync rate-limited. Try again in ${secondsRemaining} seconds.`

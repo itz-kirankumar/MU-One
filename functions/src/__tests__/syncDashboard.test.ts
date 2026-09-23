@@ -151,7 +151,7 @@ describe("syncDashboard", () => {
     }
   });
 
-  it("throws rate-limit error on second call within cooldown period", async () => {
+  it("skips a second automatic sync when the dashboard was just synced", async () => {
     const recentSync = new Date(Date.now() - 30 * 1000); // 30 seconds ago (within 60s cooldown)
     const dashData = {
       sync: {
@@ -173,12 +173,30 @@ describe("syncDashboard", () => {
         ? syncDashboard.handler
         : syncDashboard;
 
-    await expect(
-      handler({
-        auth: { uid: "test-uid", token: { email: "test@mastersunion.org" } },
-        data: {},
-      })
-    ).rejects.toThrow();
+    const result = await handler({
+      auth: { uid: "test-uid", token: { email: "test@mastersunion.org" } },
+      data: {},
+    });
+
+    expect(result.status).toBe("up_to_date");
+    expect(result.retryAfterSeconds).toBeGreaterThan(0);
+    expect(mockSet).not.toHaveBeenCalled();
+    expect(syncUserCalendar).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits a forced sync within the 15-second manual cooldown", async () => {
+    mockGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        sync: { lastCompletedAt: { toDate: () => new Date(Date.now() - 5_000) } },
+      }),
+    });
+
+    const { syncDashboard } = require("../sync/syncDashboard");
+    await expect(getHandler(syncDashboard)({
+      auth: { uid: "test-uid", token: { email: "test@mastersunion.org" } },
+      data: { force: true },
+    })).rejects.toMatchObject({ code: "resource-exhausted" });
   });
 
   it("writes sync status to Firestore during sync", async () => {

@@ -8,8 +8,9 @@ import type {
 // ─── Result types ────────────────────────────────────────────────────────────
 
 export interface SyncDashboardResult {
-  success: boolean;
-  syncedAt?: string;
+  jobId?: string;
+  status: string;
+  retryAfterSeconds?: number;
 }
 
 export interface GoogleAuthUrlResult {
@@ -162,11 +163,11 @@ export async function updatePlatformAccess(action: PlatformAccessAction, email: 
 
 /**
  * Trigger a full dashboard sync (calendar, gmail, tasks).
- * Has a 3-minute server-side debounce.
+ * The server skips recently completed automatic syncs and rate-limits forced syncs.
  */
-export async function syncDashboard(): Promise<SyncDashboardResult> {
-  const fn = httpsCallable<void, SyncDashboardResult>(functions, 'syncDashboard');
-  const result = await fn();
+export async function syncDashboard(force = false): Promise<SyncDashboardResult> {
+  const fn = httpsCallable<{ force: boolean }, SyncDashboardResult>(functions, 'syncDashboard');
+  const result = await fn({ force });
   return result.data;
 }
 
