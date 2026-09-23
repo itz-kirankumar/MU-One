@@ -271,16 +271,17 @@ export function AgendaList() {
   return (
     <section className="overflow-hidden rounded-xl border border-[#242424] bg-[#131313]">
       <div className="border-b border-[#242424] px-3 py-3 sm:px-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Top row: nav + view switcher — wraps on mobile */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => navigate(-1)} aria-label={`Previous ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"><ChevronLeft className="h-4 w-4" /></button>
-            <button type="button" onClick={goToday} title="Go to today" className="min-w-40 rounded-md bg-[#1d1d1d] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#252525]">{headerLabel(selectedDate, view, rangeStart, rangeEnd)}</button>
+            <button type="button" onClick={goToday} title="Go to today" className="min-w-[120px] sm:min-w-40 rounded-md bg-[#1d1d1d] px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-white hover:bg-[#252525]">{headerLabel(selectedDate, view, rangeStart, rangeEnd)}</button>
             <button type="button" onClick={() => navigate(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-[#222] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"><ChevronRight className="h-4 w-4" /></button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setRangeOpen(value => !value)} aria-expanded={rangeOpen} className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${view === 'range' ? 'border-[#6c5e28] bg-[#302a15] text-[#f7d344]' : 'border-[#303030] bg-[#101010] text-gray-300 hover:text-white'}`}><CalendarRange className="h-3.5 w-3.5" />Custom range</button>
-            <div className="inline-flex rounded-lg border border-[#303030] bg-[#0d0d0d] p-1" aria-label="Calendar view">
-              {(['day', 'week', 'month', 'timeline'] as CalendarView[]).map(option => <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} title={`${option[0].toUpperCase() + option.slice(1)} view · saves as default`} className={`h-7 rounded-md px-3 text-xs font-medium capitalize transition-colors ${view === option ? 'bg-[#302a15] text-[#f7d344]' : 'text-gray-400 hover:text-white'}`}>{option}</button>)}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setRangeOpen(value => !value)} aria-expanded={rangeOpen} className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 sm:px-3 text-xs font-medium ${view === 'range' ? 'border-[#6c5e28] bg-[#302a15] text-[#f7d344]' : 'border-[#303030] bg-[#101010] text-gray-300 hover:text-white'}`}><CalendarRange className="h-3.5 w-3.5" /><span className="hidden sm:inline">Custom range</span></button>
+            <div className="inline-flex rounded-lg border border-[#303030] bg-[#0d0d0d] p-0.5 sm:p-1" aria-label="Calendar view">
+              {(['day', 'week', 'month', 'timeline'] as CalendarView[]).map(option => <button key={option} type="button" onClick={() => chooseView(option)} aria-pressed={view === option} title={`${option[0].toUpperCase() + option.slice(1)} view`} className={`h-7 rounded-md px-2 sm:px-3 text-xs font-medium capitalize transition-colors ${view === option ? 'bg-[#302a15] text-[#f7d344]' : 'text-gray-400 hover:text-white'}`}>{option}</button>)}
             </div>
           </div>
         </div>
@@ -292,9 +293,10 @@ export function AgendaList() {
           {rangeError && <p role="alert" className="w-full text-xs text-red-400">{rangeError}</p>}
         </div>}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#222] pt-3">
-          <label htmlFor="calendar-subject-filter" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Subject</label>
-          <select id="calendar-subject-filter" value={subjectFilter} onChange={event => { setSubjectFilter(event.target.value); setSelectedEvent(null); }} className="h-9 min-w-44 max-w-64 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-white/20">
+        {/* Filter row — horizontally scrollable on mobile */}
+        <div className="mt-3 flex items-center gap-2 border-t border-[#222] pt-3 overflow-x-auto custom-scrollbar pb-0.5">
+          <label htmlFor="calendar-subject-filter" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 flex-shrink-0">Subject</label>
+          <select id="calendar-subject-filter" value={subjectFilter} onChange={event => { setSubjectFilter(event.target.value); setSelectedEvent(null); }} className="h-8 min-w-36 max-w-48 flex-shrink-0 rounded-lg border border-[#303030] bg-[#101010] px-2 text-xs text-gray-300 outline-none focus:border-white/20">
             <option value="all">All subjects</option>
             {subjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
           </select>
@@ -303,18 +305,19 @@ export function AgendaList() {
             onClick={() => setIsComparisonOpen(true)}
             disabled={subjects.length === 0 && sharedEvents.length === 0}
             title="Compare timetable across Sections A–H"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs font-medium text-gray-300 transition-colors hover:border-[#6c5e28] hover:bg-[#1a170d] hover:text-[#f7d344] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#303030] bg-[#101010] px-2 sm:px-3 text-xs font-medium text-gray-300 transition-colors hover:border-[#6c5e28] hover:bg-[#1a170d] hover:text-[#f7d344] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Columns className="h-3.5 w-3.5 text-[#d8bd4d]" />
-            <span>Compare across sections</span>
+            <span className="hidden sm:inline">Compare across sections</span>
+            <span className="sm:hidden">Compare</span>
           </button>
-          <label htmlFor="calendar-section-filter" className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Section</label>
-          <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); window.localStorage.setItem(SECTION_KEY, event.target.value); setSelectedEvent(null); }} className="h-9 min-w-32 rounded-lg border border-[#303030] bg-[#101010] px-3 text-xs text-gray-300 outline-none focus:border-white/20">
+          <label htmlFor="calendar-section-filter" className="ml-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500 flex-shrink-0">Section</label>
+          <select id="calendar-section-filter" value={sectionFilter} onChange={event => { setSectionFilter(event.target.value); window.localStorage.setItem(SECTION_KEY, event.target.value); setSelectedEvent(null); }} className="h-8 min-w-28 flex-shrink-0 rounded-lg border border-[#303030] bg-[#101010] px-2 text-xs text-gray-300 outline-none focus:border-white/20">
             <option value="all">All sections</option>
             {SECTIONS.map(section => <option key={section} value={section}>Section {section}</option>)}
             <option value="personal">Personal only</option>
           </select>
-          <p className="ml-auto text-[10px] text-gray-600">Personal & Shared calendars</p>
+          <p className="ml-auto text-[10px] text-gray-600 flex-shrink-0 hidden sm:block">Personal &amp; Shared calendars</p>
         </div>
       </div>
 
@@ -328,19 +331,30 @@ export function AgendaList() {
       ) : view === 'day' ? (
         <div className="p-3">{visibleEvents.length ? <div className="grid gap-2 md:grid-cols-2">{visibleEvents.map((event, index) => <CalendarEventCard key={eventKey(event, index)} event={event} />)}</div> : <p className="py-12 text-center text-xs text-gray-500">No shared sessions on this day.</p>}</div>
       ) : showTimeline ? (
-        <div className="px-3 py-4 sm:px-5">
-          {timelineKeys.length ? <div className="relative">
-            <div className="absolute bottom-2 left-[3.9rem] top-2 w-px bg-[#37331f] sm:left-[5.4rem]" aria-hidden="true" />
-            <div className="space-y-5">{timelineKeys.map(key => {
-              const label = timelineDateLabel(key);
-              const dayEvents = grouped.get(key) ?? [];
-              return <section key={key} className="relative grid grid-cols-[3.25rem_1fr] gap-4 sm:grid-cols-[4.75rem_1fr]">
-                <div className="pt-0.5 text-right"><p className="text-[10px] font-semibold uppercase tracking-wider text-[#d8bd4d]">{label.day}</p><p className="mt-0.5 text-xs text-gray-400">{label.date}</p></div>
-                <span className="absolute left-[3.55rem] top-2 h-2.5 w-2.5 rounded-full border-2 border-[#131313] bg-[#f7d344] sm:left-[5.05rem]" aria-hidden="true" />
-                <div className="min-w-0 space-y-4 pl-2">{dayEvents.map((event, index) => <TimelineEvent key={eventKey(event, index)} event={event} />)}</div>
-              </section>;
-            })}</div>
-          </div> : <p className="py-12 text-center text-xs text-gray-500">No shared sessions in this period.</p>}
+        <div className="relative">
+          <div
+            data-testid="timeline-scroll-region"
+            aria-label="Calendar timeline"
+            tabIndex={0}
+            className="custom-scrollbar max-h-[480px] min-h-48 overflow-y-auto overscroll-y-auto scroll-smooth px-3 py-4 pr-2 [scrollbar-gutter:stable] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#f7d344] sm:px-5 sm:pr-3"
+          >
+            {timelineKeys.length ? <div className="relative">
+              <div className="absolute bottom-2 left-[3.9rem] top-2 w-px bg-[#37331f] sm:left-[5.4rem]" aria-hidden="true" />
+              <div className="space-y-5">{timelineKeys.map(key => {
+                const label = timelineDateLabel(key);
+                const dayEvents = grouped.get(key) ?? [];
+                return <section key={key} className="relative grid grid-cols-[3.25rem_1fr] gap-4 sm:grid-cols-[4.75rem_1fr]">
+                  <div className="pt-0.5 text-right"><p className="text-[10px] font-semibold uppercase tracking-wider text-[#d8bd4d]">{label.day}</p><p className="mt-0.5 text-xs text-gray-400">{label.date}</p></div>
+                  <span className="absolute left-[3.55rem] top-2 h-2.5 w-2.5 rounded-full border-2 border-[#131313] bg-[#f7d344] sm:left-[5.05rem]" aria-hidden="true" />
+                  <div className="min-w-0 space-y-4 pl-2">{dayEvents.map((event, index) => <TimelineEvent key={eventKey(event, index)} event={event} />)}</div>
+                </section>;
+              })}</div>
+            </div> : <p className="py-12 text-center text-xs text-gray-500">No shared sessions in this period.</p>}
+          </div>
+          {/* Bottom fade — signals more content below */}
+          {timelineKeys.length > 0 && (
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 rounded-b-xl bg-gradient-to-t from-[#131313] to-transparent" aria-hidden="true" />
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto custom-scrollbar"><div className="min-w-[760px]">

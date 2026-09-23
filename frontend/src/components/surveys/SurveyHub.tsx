@@ -64,7 +64,26 @@ function SurveyFeed({ mine, onSelect, onCreate }: { mine: boolean; onSelect: (su
     aria-busy={loading}
   >
     {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{error}<button onClick={() => setAttempt(a => a + 1)} className="ml-3 underline">Try again</button></div>}
-    {loading && !surveys.length && <p role="status" className="py-16 text-center text-gray-400">Loading community surveys…</p>}
+    {loading && !surveys.length && (
+      <div role="status" className="flex flex-col items-center justify-center min-h-[400px] gap-6 animate-in fade-in duration-500">
+        <div className="relative flex items-center justify-center h-20 w-20">
+          <div className="absolute inset-0 rounded-full border-t-2 border-b-2 border-[#f7d344] animate-[spin_2s_linear_infinite] opacity-80"></div>
+          <div className="absolute inset-1.5 rounded-full border-r-2 border-l-2 border-white animate-[spin_1.5s_linear_reverse_infinite] opacity-40"></div>
+          <div className="absolute inset-3 rounded-full border-t-2 border-[#f7d344] animate-pulse opacity-60"></div>
+          <ClipboardList className="h-7 w-7 text-[#f7d344] animate-pulse" />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm font-semibold tracking-widest text-gray-300 uppercase animate-pulse">
+            Loading community surveys
+          </p>
+          <div className="flex gap-1.5 mt-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#f7d344] animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#f7d344] animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#f7d344] animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
+    )}
     {!loading && !error && !surveys.length && <div className="rounded-2xl border border-dashed border-[#383838] px-5 py-16 text-center"><ClipboardList size={32} className="mx-auto mb-4 text-[#f7d344]" /><h2 className="text-xl font-semibold">{mine ? 'Your research starts here.' : 'Be the first to ask.'}</h2><p className="mt-2 text-sm text-gray-400">{mine ? 'Create a survey and bring your idea to the community.' : 'There are no surveys yet. Start a conversation with a question.'}</p><button onClick={onCreate} className="mt-5 text-sm font-semibold text-[#f7d344]">Create your first survey →</button></div>}
     <div className="grid gap-4 md:grid-cols-2">{surveys.map(survey => <article key={survey.id} aria-labelledby={`survey-title-${survey.id}`} className="flex min-w-0 flex-col rounded-2xl border border-[#292929] bg-[#161616] p-5 transition-colors hover:border-[#444] sm:p-6"><div className="mb-4 flex flex-wrap gap-2 text-[11px]"><span className={`rounded-full px-2.5 py-1 ${survey.status === 'open' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-[#292929] text-gray-400'}`}>{survey.status === 'open' ? 'Open for responses' : 'Closed'}</span><span className="rounded-full bg-[#242424] px-2.5 py-1 text-gray-400">{survey.anonymousResponses ? 'Anonymous responses' : 'Named responses'}</span></div><h2 id={`survey-title-${survey.id}`} className="break-words text-xl font-semibold">{survey.title}</h2><p className="mt-2 line-clamp-3 break-words text-sm leading-6 text-gray-400">{survey.description}</p><p className="mt-4 text-xs text-gray-500">By {survey.authorName} · {survey.questions.length} questions</p><div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#292929] pt-4"><span className="flex items-center gap-1.5 text-xs text-gray-400"><Users size={14} aria-hidden="true" />{survey.responseCount} responses</span><button onClick={() => onSelect(survey)} className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-[#f7d344] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20">{survey.isOwner ? 'View results' : survey.hasResponded ? 'Response submitted' : survey.status === 'closed' ? 'View survey' : 'Take survey'}<ArrowUpRight size={15} aria-hidden="true" /></button></div></article>)}</div>
     {cursor && <button onClick={more} disabled={loading} className="rounded-xl border border-[#333] px-5 py-3 text-sm disabled:opacity-50">{loading ? 'Loading…' : 'Load more surveys'}</button>}

@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { SignInPage } from '@/components/auth/SignInPage';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PlatformLoader } from '@/components/ui/PlatformLoader';
 
 export default function HomePage() {
   const { user, loading } = useAuth();
@@ -19,7 +19,7 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
-        <LoadingSpinner size="lg" label="Loading MU One…" />
+        <PlatformLoader label="Loading MU One" />
       </div>
     );
   }
@@ -28,7 +28,7 @@ export default function HomePage() {
     // Redirect in progress
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
-        <LoadingSpinner size="lg" label="Redirecting…" />
+        <PlatformLoader label="Redirecting" />
       </div>
     );
   }

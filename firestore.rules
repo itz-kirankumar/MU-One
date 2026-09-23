@@ -123,6 +123,53 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Founder Connect ──────────────────────────────────────────────────────
+
+    // Profiles hold questionnaire answers, the imported LinkedIn record and the
+    // statement of purpose. Another student is only ever shown the summary the
+    // callable projects, never the document.
+    match /founderProfiles/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /founderLinkedInStates/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /founderLinkedInConnections/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Cached pair scores name both uids; readable only through the callable,
+    // which checks that the caller is one of them.
+    match /founderMatches/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Posts carry authorUid even when the post is anonymous, so a client can
+    // never read the document. The callable strips the author before returning.
+    match /founderPosts/{document=**} {
+      allow read, write: if false;
+    }
+
+    // DM threads are the one Founder Connect read path open to clients, so the
+    // browser can listen for new messages live. There is no anonymity to
+    // protect here, and the participants array bounds the read to the two
+    // people in the conversation. Writes still go through the callable, which
+    // owns the unread counters and the thread summary.
+    match /founderThreads/{threadId} {
+      allow read: if hasPlatformAccess()
+        && request.auth.uid in resource.data.participants;
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if hasPlatformAccess()
+          && request.auth.uid in get(/databases/$(database)/documents/founderThreads/$(threadId)).data.participants;
+        allow write: if false;
+      }
+    }
+
     // Deny all other paths explicitly
     match /{document=**} {
       allow read, write: if false;

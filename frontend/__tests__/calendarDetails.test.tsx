@@ -100,6 +100,7 @@ test('calendar defaults to a compact month grid and saves the selected view', ()
   fireEvent.click(screen.getByRole('button', { name: 'timeline' }));
   expect(screen.getByRole('button', { name: 'timeline' })).toHaveAttribute('aria-pressed', 'true');
   expect(window.localStorage.getItem('muone.calendarView')).toBe('timeline');
+  expect(screen.getByTestId('timeline-scroll-region')).toHaveClass('overflow-y-auto');
   expect(screen.getByText(currentEvent.title)).toBeVisible();
   expect(screen.getAllByTestId('timeline-event')[0]).not.toHaveClass('rounded-xl');
   expect(screen.getAllByTestId('timeline-event')[0]).not.toHaveClass('bg-[#15140f]');

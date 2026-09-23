@@ -1,0 +1,11 @@
+# Firebase-only backend and local credentials must never enter a Vercel build.
+functions/
+.env
+.env.*
+frontend/.env
+frontend/.env.*
+*.pem
+*.key
+client_secret.json
+service-account.json
+*-service-account.json

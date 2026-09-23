@@ -1,11 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CalendarDays, Mail, CheckSquare, AlertCircle, CheckCircle2, MinusCircle, Loader2 } from 'lucide-react';
 import { useDashboard } from '@/contexts/DashboardContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { disconnectGoogleAccount } from '@/lib/functions';
+import { founderApi } from '@/lib/founder';
 import type { SourceHealth } from '@/types';
+
+function LinkedInIcon({ className }: { className?: string }) {
+  return (
+    <img
+      src="/linkedin.png"
+      alt="LinkedIn"
+      className={className}
+      style={{ objectFit: 'contain' }}
+    />
+  );
+}
 
 function StatusBadge({ status }: { status?: 'ok' | 'warning' | 'error' | string }) {
   const s = typeof status === 'string' ? status.toLowerCase() : '';
@@ -140,11 +152,32 @@ function SidebarSourceRow({
 
 export function ConnectedSources({ inSidebar = false, collapsed = false }: ConnectedSourcesProps) {
   const { syncStatus, dashboardData } = useDashboard();
-  const { googleConnected } = useAuth();
+  const { user, googleConnected } = useAuth();
   const [disconnecting, setDisconnecting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmationText, setConfirmationText] = useState('');
   const [disconnectError, setDisconnectError] = useState('');
   const [disconnectSuccess, setDisconnectSuccess] = useState(false);
+
+  const [linkedinData, setLinkedinData] = useState<{ linkedAt?: string; name?: string } | null>(null);
+  const [linkedinStatusError, setLinkedinStatusError] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let mounted = true;
+    founderApi.connectionStatus()
+      .then(({ linkedinConnection }) => {
+        if (!mounted) return;
+        setLinkedinData(linkedinConnection);
+        setLinkedinStatusError(false);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setLinkedinData(null);
+        setLinkedinStatusError(true);
+      });
+    return () => { mounted = false; };
+  }, [user?.uid]);
 
   const isGoogleConnected = googleConnected;
   const hasCalendar = Boolean(
@@ -161,25 +194,45 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
   const lastSyncedAt = syncStatus?.lastSyncedAt;
   const rawHealth = syncStatus?.sourceHealth;
 
-  const calendarHealth: SourceHealth | undefined =
-    rawHealth?.calendar ??
-    (isGoogleConnected || hasCalendar ? { status: 'ok', lastSyncedAt } : undefined);
+  const calendarHealth: SourceHealth | undefined = isGoogleConnected ? (
+    rawHealth?.calendar ?? (hasCalendar ? { status: 'ok', lastSyncedAt } : undefined)
+  ) : undefined;
 
-  const mailHealth: SourceHealth | undefined =
-    rawHealth?.gmail ??
-    (isGoogleConnected || hasMail ? { status: 'ok', lastSyncedAt } : undefined);
+  const mailHealth: SourceHealth | undefined = isGoogleConnected ? (
+    rawHealth?.gmail ?? (hasMail ? { status: 'ok', lastSyncedAt } : undefined)
+  ) : undefined;
 
-  const tasksHealth: SourceHealth | undefined =
-    rawHealth?.tasks ??
-    (isGoogleConnected || hasTasks ? { status: 'ok', lastSyncedAt } : undefined);
+  const tasksHealth: SourceHealth | undefined = isGoogleConnected ? (
+    rawHealth?.tasks ?? (hasTasks ? { status: 'ok', lastSyncedAt } : undefined)
+  ) : undefined;
+
+  const linkedinHealth: SourceHealth | undefined = linkedinData ? {
+    status: 'ok',
+    lastSyncedAt: linkedinData.linkedAt,
+  } : undefined;
+
+  function openDisconnectConfirm() {
+    setConfirmationText('');
+    setDisconnectError('');
+    setShowConfirm(true);
+  }
+
+  function closeDisconnectConfirm() {
+    if (disconnecting) return;
+    setShowConfirm(false);
+    setConfirmationText('');
+    setDisconnectError('');
+  }
 
   async function handleDisconnect() {
+    if (confirmationText.trim() !== 'confirm' || disconnecting) return;
     setDisconnecting(true);
     setDisconnectError('');
     try {
       await disconnectGoogleAccount();
       setDisconnectSuccess(true);
       setShowConfirm(false);
+      setConfirmationText('');
     } catch (err: unknown) {
       setDisconnectError(err instanceof Error ? err.message : 'Failed to disconnect');
     } finally {
@@ -193,32 +246,59 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
       role="dialog"
       aria-modal="true"
-      aria-label="Confirm disconnect"
+      aria-labelledby="disconnect-title"
+      aria-describedby="disconnect-description"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') closeDisconnectConfirm();
+      }}
     >
-      <div className="w-full max-w-sm rounded-xl border border-[#2A2A2A] bg-[#161616] p-5 space-y-4">
-        <h4 className="text-sm font-semibold text-white">Disconnect Google Account?</h4>
-        <p className="text-sm text-gray-400">
-          This will revoke access to your Google Calendar, Gmail, and Tasks. You can
-          reconnect at any time.
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleDisconnect();
+        }}
+        className="w-full max-w-sm rounded-xl border border-[#2A2A2A] bg-[#161616] p-5 shadow-2xl"
+      >
+        <h4 id="disconnect-title" className="text-base font-semibold text-white">Disconnect Google account?</h4>
+        <p id="disconnect-description" className="mt-2 text-sm leading-6 text-gray-400">
+          MU One will lose access to your Google Calendar, Mail, and Tasks. You can reconnect later.
         </p>
-        {disconnectError && <p className="text-xs text-red-400">{disconnectError}</p>}
-        <div className="flex gap-2 justify-end">
+        <label htmlFor="disconnect-confirmation" className="mt-5 block text-xs font-medium text-gray-300">
+          Type <strong className="text-white">confirm</strong> to disconnect
+        </label>
+        <input
+          id="disconnect-confirmation"
+          type="text"
+          autoFocus
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={32}
+          value={confirmationText}
+          onChange={(event) => setConfirmationText(event.target.value)}
+          disabled={disconnecting}
+          className="mt-2 w-full rounded-md border border-[#353535] bg-[#101010] px-3 py-2 text-sm text-white outline-none placeholder:text-gray-600 focus:border-[#f7d344] disabled:opacity-50"
+          placeholder="confirm"
+        />
+        {disconnectError && <p role="alert" className="mt-3 text-xs text-red-400">{disconnectError}</p>}
+        <div className="mt-5 flex justify-end gap-2">
           <button
-            onClick={() => setShowConfirm(false)}
-            className="rounded-md border border-[#2A2A2A] px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+            type="button"
+            onClick={closeDisconnectConfirm}
+            disabled={disconnecting}
+            className="rounded-md border border-[#2A2A2A] px-3 py-2 text-xs text-gray-300 hover:bg-[#242424] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-white/20"
           >
             Cancel
           </button>
           <button
-            onClick={handleDisconnect}
-            disabled={disconnecting}
-            className="flex items-center gap-1.5 rounded-md bg-red-900/60 border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-300 disabled:opacity-50 hover:bg-red-900/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+            type="submit"
+            disabled={confirmationText.trim() !== 'confirm' || disconnecting}
+            className="flex items-center gap-1.5 rounded-md border border-red-800/40 bg-red-900/60 px-3 py-2 text-xs font-medium text-red-100 hover:bg-red-900/80 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-white/20"
           >
-            {disconnecting && <Loader2 className="h-3 w-3 animate-spin" />}
-            Yes, disconnect
+            {disconnecting && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+            Disconnect Google
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 
@@ -261,6 +341,17 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
                 }`}
               />
             </div>
+            <div
+              className="relative flex h-8 w-8 items-center justify-center rounded-md bg-[#161616] border border-[#242424] cursor-default"
+              title={`LinkedIn: ${linkedinHealth?.status === 'ok' ? 'Connected' : 'Offline'}`}
+            >
+              <LinkedInIcon className="h-4 w-4" />
+              <div
+                className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-[#0A0A0A] ${
+                  linkedinHealth?.status === 'ok' ? 'bg-emerald-500' : 'bg-gray-600'
+                }`}
+              />
+            </div>
           </div>
           {confirmModal}
         </>
@@ -276,19 +367,24 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
             </span>
           </div>
 
-          <div className="space-y-0.5">
+          <div className="max-h-48 space-y-0.5 overflow-y-auto custom-scrollbar">
             <SidebarSourceRow icon={CalendarDays} name="Google Calendar" health={calendarHealth} />
             <SidebarSourceRow icon={Mail} name="MU Mail" health={mailHealth} />
             <SidebarSourceRow icon={CheckSquare} name="Google Tasks" health={tasksHealth} />
+            <SidebarSourceRow icon={LinkedInIcon} name="LinkedIn" health={linkedinHealth} />
           </div>
 
-          <div className="pt-1 px-1.5">
+          {linkedinStatusError && <p role="status" className="px-2 text-[10px] text-amber-300">LinkedIn status unavailable. Refresh to retry.</p>}
+
+          <div className="mt-2 border-t border-[#242424] px-1.5 pt-2">
             {disconnectSuccess ? (
               <p className="text-[10px] text-green-400">Account disconnected.</p>
             ) : (
               <button
-                onClick={() => setShowConfirm(true)}
-                className="text-[11px] text-red-400/80 hover:text-red-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
+                type="button"
+                onClick={openDisconnectConfirm}
+                disabled={!isGoogleConnected}
+                className="w-full rounded-md border border-red-900/50 px-2 py-2 text-center text-[11px] font-medium text-red-300 transition-colors hover:bg-red-950/30 disabled:cursor-not-allowed disabled:border-[#242424] disabled:text-gray-600 focus-visible:ring-2 focus-visible:ring-red-400"
               >
                 Disconnect Google Account
               </button>
@@ -315,7 +411,10 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
           <SourceRow icon={CalendarDays} name="Google Calendar" health={calendarHealth} />
           <SourceRow icon={Mail} name="MU Mail" health={mailHealth} />
           <SourceRow icon={CheckSquare} name="Google Tasks" health={tasksHealth} />
+          <SourceRow icon={LinkedInIcon} name="LinkedIn" health={linkedinHealth} />
         </div>
+
+        {linkedinStatusError && <p role="status" className="px-5 pb-3 text-xs text-amber-300">LinkedIn status unavailable. Refresh to retry.</p>}
 
         <div className="border-t border-[#1A1A1A] px-5 py-4">
           {disconnectSuccess ? (
@@ -323,8 +422,9 @@ export function ConnectedSources({ inSidebar = false, collapsed = false }: Conne
           ) : (
             <>
               <button
-                onClick={() => setShowConfirm(true)}
-                className="text-sm text-red-400 hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rounded"
+                onClick={openDisconnectConfirm}
+                disabled={!isGoogleConnected}
+                className="rounded text-sm text-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:text-gray-600 focus-visible:ring-2 focus-visible:ring-white/20"
               >
                 Disconnect Google Account
               </button>

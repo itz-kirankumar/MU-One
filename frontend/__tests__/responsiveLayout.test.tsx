@@ -1,6 +1,8 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+
+let mockIsAdmin = false;
 
 jest.mock('../src/contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -9,6 +11,7 @@ jest.mock('../src/contexts/AuthContext', () => ({
     loading: false,
     signIn: jest.fn(),
     signOut: jest.fn(),
+    access: { isAdmin: mockIsAdmin, hasAccess: false },
   }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -72,6 +75,8 @@ jest.mock('next/image', () => ({
 import { DashboardShell } from '../src/components/layout/DashboardShell';
 
 describe('DashboardShell', () => {
+  beforeEach(() => { mockIsAdmin = false; });
+
   it('renders without horizontal overflow', () => {
     const { container } = render(<DashboardShell />);
     const root = container.firstChild as HTMLElement;
@@ -83,7 +88,24 @@ describe('DashboardShell', () => {
   it('sidebar is not visible as mobile drawer by default', () => {
     const { queryByRole } = render(<DashboardShell />);
     // Mobile drawer is conditionally rendered
-    const mobileDrawer = queryByRole('navigation', { name: /mobile/i });
+    const mobileDrawer = queryByRole('navigation', { name: 'Mobile navigation' });
     expect(mobileDrawer).toBeNull();
+  });
+
+  it('keeps Email QA out of the user dashboard and admin user preview', () => {
+    const { unmount } = render(<DashboardShell />);
+    expect(screen.queryByRole('button', { name: 'Testmail Email QA' })).not.toBeInTheDocument();
+    unmount();
+
+    mockIsAdmin = true;
+    render(<DashboardShell userPreview />);
+    expect(screen.queryByRole('button', { name: 'Testmail Email QA' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Email QA available to administrators', () => {
+    mockIsAdmin = true;
+    render(<DashboardShell />);
+    fireEvent.click(screen.getByRole('button', { name: 'Testmail Email QA' }));
+    expect(screen.getByText('Admin · Email QA')).toBeInTheDocument();
   });
 });

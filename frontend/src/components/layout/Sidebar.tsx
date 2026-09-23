@@ -18,15 +18,17 @@ import {
   Mail,
   Shield,
   Megaphone,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConnectedSources } from '@/components/dashboard/ConnectedSources';
 import { Logo } from '@/components/ui/Logo';
 
-export type SidebarTab = 'dashboard' | 'email' | 'surveys' | 'email_qa' | 'pitch' | 'admin' | 'announcements';
+export type SidebarTab = 'dashboard' | 'email' | 'surveys' | 'founder' | 'email_qa' | 'pitch' | 'admin' | 'announcements';
 
 interface SidebarProps {
   collapsed: boolean;
+  userPreview?: boolean;
   onToggle: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
@@ -50,6 +52,7 @@ const STUDENT_TOOLS: Array<{
 
 export function Sidebar({
   collapsed,
+  userPreview = false,
   onToggle,
   mobileOpen,
   onMobileClose,
@@ -113,15 +116,17 @@ export function Sidebar({
           <Mail className={`h-4 w-4 flex-shrink-0 ${activeTab === 'email' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
           {(!collapsed || isMobile) && <span>Email Center</span>}
         </button>
-        <button
-          title="Testmail Email QA"
-          aria-label="Testmail Email QA"
-          onClick={() => { handleTabClick('email_qa'); if (isMobile) onMobileClose(); }}
-          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'email_qa' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
-        >
-          <FlaskConical className={`h-4 w-4 flex-shrink-0 ${activeTab === 'email_qa' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
-          {(!collapsed || isMobile) && <span>Email QA</span>}
-        </button>
+        {access?.isAdmin && !userPreview && (
+          <button
+            title="Testmail Email QA"
+            aria-label="Testmail Email QA"
+            onClick={() => { handleTabClick('email_qa'); if (isMobile) onMobileClose(); }}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'email_qa' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+          >
+            <FlaskConical className={`h-4 w-4 flex-shrink-0 ${activeTab === 'email_qa' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+            {(!collapsed || isMobile) && <span>Email QA</span>}
+          </button>
+        )}
         <button
           title="Community surveys"
           aria-label="Community surveys"
@@ -131,7 +136,16 @@ export function Sidebar({
           <ClipboardList className={`h-4 w-4 flex-shrink-0 ${activeTab === 'surveys' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
           {(!collapsed || isMobile) && <span>Surveys</span>}
         </button>
-        {access?.isAdmin && (
+        <button
+          title="Founder Connect"
+          aria-label="Founder Connect"
+          onClick={() => { handleTabClick('founder'); if (isMobile) onMobileClose(); }}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'founder' ? 'bg-[#1E1E1E] text-white border border-[#2E2E2E]' : 'text-gray-400 hover:bg-[#141414] hover:text-white'}`}
+        >
+          <Users className={`h-4 w-4 flex-shrink-0 ${activeTab === 'founder' ? 'text-[#f7d344]' : 'text-gray-400'}`} />
+          {(!collapsed || isMobile) && <span>Founder Connect</span>}
+        </button>
+        {access?.isAdmin && !userPreview && (
           <button
             title="Announcements"
             aria-label="Announcements"
@@ -142,7 +156,7 @@ export function Sidebar({
             {(!collapsed || isMobile) && <span>Announcements</span>}
           </button>
         )}
-        {access?.isAdmin && (
+        {access?.isAdmin && !userPreview && (
           <button
             title="Access Control"
             aria-label="Access Control"
@@ -262,7 +276,7 @@ export function Sidebar({
 
         {/* Expandable or compact sources */}
         {(sourcesOpen || collapsed) && (
-          <div className="max-h-48 overflow-y-auto px-2 py-2 border-t border-[#181818] custom-scrollbar">
+          <div className="border-t border-[#181818] px-2 py-2">
             <ConnectedSources inSidebar collapsed={collapsed} />
           </div>
         )}
@@ -343,7 +357,7 @@ export function Sidebar({
                   )}
                 </button>
                 {sourcesOpen && (
-                  <div className="max-h-48 overflow-y-auto px-2 py-2 border-t border-[#181818] custom-scrollbar">
+                  <div className="border-t border-[#181818] px-2 py-2">
                     <ConnectedSources inSidebar collapsed={false} />
                   </div>
                 )}

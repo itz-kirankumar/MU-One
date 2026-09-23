@@ -1,22 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardProvider } from '@/contexts/DashboardContext';
 import { DashboardShell } from '@/components/layout/DashboardShell';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PlatformLoader } from '@/components/ui/PlatformLoader';
 import { WaitlistGate } from '@/components/access/WaitlistGate';
+
+function subscribeToLocation(onChange: () => void) {
+  window.addEventListener('popstate', onChange);
+  return () => window.removeEventListener('popstate', onChange);
+}
+
+function getPreviewMode() {
+  return new URLSearchParams(window.location.search).get('preview');
+}
 
 export default function DashboardPage() {
   const { user, loading, access, accessLoading } = useAuth();
   const router = useRouter();
-  const [isPreview, setIsPreview] = useState(false);
-
-  useEffect(() => {
-    const previewMode = new URLSearchParams(window.location.search).get('preview');
-    setIsPreview(previewMode === 'waitlist' || previewMode === 'waitlist_joined');
-  }, []);
+  const previewMode = useSyncExternalStore(subscribeToLocation, getPreviewMode, () => undefined);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -24,10 +28,10 @@ export default function DashboardPage() {
     }
   }, [user, loading, router]);
 
-  if (loading || (user && accessLoading)) {
+  if (loading || (user && accessLoading) || previewMode === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
-        <LoadingSpinner size="lg" label="Loading dashboard…" />
+        <PlatformLoader label="Loading dashboard" />
       </div>
     );
   }
@@ -35,16 +39,16 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
-        <LoadingSpinner size="lg" label="Redirecting…" />
+        <PlatformLoader label="Redirecting" />
       </div>
     );
   }
 
-  if (isPreview || !access?.hasAccess) return <WaitlistGate />;
+  if (previewMode === 'waitlist' || previewMode === 'waitlist_joined' || !access?.hasAccess) return <WaitlistGate />;
 
   return (
     <DashboardProvider>
-      <DashboardShell />
+      <DashboardShell userPreview={previewMode === 'user' && access.isAdmin === true} />
     </DashboardProvider>
   );
 }

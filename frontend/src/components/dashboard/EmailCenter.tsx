@@ -196,8 +196,8 @@ export function EmailCenter({ onCompose }: EmailCenterProps) {
                 {/* Actions & Avatar Container */}
                 <div className="flex items-center gap-2 shrink-0">
                   <div className={`flex items-center gap-1 shrink-0 transition-opacity ${state.pinned ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'}`}>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { pinned: !state.pinned }); }} aria-label={state.pinned ? 'Unpin' : 'Pin'} className={`grid h-6 w-6 place-items-center rounded-md ${state.pinned ? 'text-[#f7d344]' : 'text-gray-500 hover:text-[#f7d344]'}`}><Pin className="h-3.5 w-3.5" fill={state.pinned ? 'currentColor' : 'none'} /></button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { read: !state.read }); }} title={state.read ? 'Mark as unread' : 'Mark as read'} className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:text-white">{state.read ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { pinned: !state.pinned }); }} aria-label={`${state.pinned ? 'Unpin' : 'Pin'} ${mail.subject}`} className={`grid h-6 w-6 place-items-center rounded-md ${state.pinned ? 'text-[#f7d344]' : 'text-gray-500 hover:text-[#f7d344]'}`}><Pin className="h-3.5 w-3.5" fill={state.pinned ? 'currentColor' : 'none'} /></button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); patchMessage(id, { read: !state.read }); }} aria-label={`Mark ${mail.subject} as ${state.read ? 'unread' : 'read'}`} className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:text-white">{state.read ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button>
                   </div>
                   
                   {/* Avatar */}

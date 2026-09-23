@@ -1,6 +1,9 @@
 import type { NormalizedMailSignal } from '../utils/mailParsing';
 
-const JEV_ENDPOINT = 'https://api.experientiallabs.ai/v1/systemone';
+export const JEV_ENDPOINT = 'https://api.experientiallabs.ai/v1/systemone';
+
+/** Model slugs are interpolated into a request body, so they are whitelisted. */
+export const JEV_MODEL_PATTERN = /^[a-zA-Z0-9._:-]{1,100}$/;
 
 export type JevMailCategory = 'deadline' | 'action' | 'information' | 'spam';
 
@@ -21,7 +24,8 @@ interface JevResponse {
 
 const CATEGORIES = new Set<JevMailCategory>(['deadline', 'action', 'information', 'spam']);
 
-function probability(value: unknown): number {
+/** Clamps an untrusted model-supplied number into 0–1, defaulting to 0. */
+export function probability(value: unknown): number {
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : 0;
 }
@@ -55,7 +59,7 @@ export async function classifyMailWithJev(
   fetcher: typeof fetch = fetch,
 ): Promise<JevMailClassification> {
   if (!apiKey.trim()) throw new Error('EXPLABS_API_KEY is not configured.');
-  if (!/^[a-zA-Z0-9._:-]{1,100}$/.test(model)) throw new Error('Invalid JEV model slug.');
+  if (!JEV_MODEL_PATTERN.test(model)) throw new Error('Invalid JEV model slug.');
   const state = [
     `From: ${mail.sender.slice(0, 300)}`,
     `Subject: ${mail.subject.slice(0, 500)}`,

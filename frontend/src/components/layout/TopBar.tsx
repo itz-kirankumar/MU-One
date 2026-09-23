@@ -30,13 +30,14 @@ function formatLastSynced(iso: string | undefined): string {
 }
 
 interface TopBarProps {
+  userPreview?: boolean;
   onNewEvent: () => void;
   onComposeMail: () => void;
   onMobileMenuOpen: () => void;
   onOpenVoiceCopilot?: () => void;
 }
 
-export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoiceCopilot }: TopBarProps) {
+export function TopBar({ userPreview = false, onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoiceCopilot }: TopBarProps) {
   const { access } = useAuth();
   const { syncing, isAutoSyncing, lastSyncedAt, sourceHealth, triggerSync } = useSyncStatus();
   const [refreshing, setRefreshing] = useState(false);
@@ -104,7 +105,7 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
 
       {/* Right: Sync Status Log + Sync Button (Unified Pill) + Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        {access?.isAdmin && (
+        {access?.isAdmin && !userPreview && (
           <Link
             href="/admin/access"
             aria-label="Open access control"
@@ -115,30 +116,28 @@ export function TopBar({ onNewEvent, onComposeMail, onMobileMenuOpen, onOpenVoic
           </Link>
         )}
         {/* Unified Sync Pill: Status Log & Sync Button paired side-by-side */}
-        <div className="flex items-center rounded-lg border border-[#262626] bg-[#141414] px-2.5 py-1 text-xs gap-2 shadow-xs transition-colors hover:border-[#333]">
+        <div className="flex items-center rounded-lg border border-[#262626] bg-[#141414] px-2 sm:px-2.5 py-1 text-xs gap-1.5 sm:gap-2 shadow-xs transition-colors hover:border-[#333]">
           {isSyncActive ? (
             <div className="flex items-center gap-1.5 text-[#f7d344]">
               <LoadingSpinner size="sm" />
-              <span className="font-medium">{isAutoSyncing ? 'Auto-syncing...' : 'Syncing...'}</span>
+              <span className="font-medium hidden sm:inline">{isAutoSyncing ? 'Auto-syncing...' : 'Syncing...'}</span>
             </div>
           ) : cooldownMsg ? (
-            <span className="text-amber-400 font-medium text-[11px] animate-in fade-in duration-150">
+            <span className="text-amber-400 font-medium text-[11px] animate-in fade-in duration-150 hidden sm:inline">
               {cooldownMsg}
             </span>
           ) : hasWarning ? (
             <div className="flex items-center gap-1.5 text-amber-400">
               <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
-              <span className="font-medium">Warning</span>
+              <span className="font-medium hidden sm:inline">Warning</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
               <span
-                className={`h-2 w-2 rounded-full ${
-                  lastSyncedAt ? 'bg-emerald-500' : 'bg-gray-500'
-                }`}
+                className={`h-2 w-2 rounded-full ${lastSyncedAt ? 'bg-emerald-500' : 'bg-gray-500'}`}
                 aria-hidden="true"
               />
-              <span className="text-gray-300 font-medium whitespace-nowrap">
+              <span className="text-gray-300 font-medium whitespace-nowrap hidden sm:inline">
                 {lastSyncedAt ? `Synced ${formatLastSynced(lastSyncedAt)}` : 'Not synced yet'}
               </span>
             </div>

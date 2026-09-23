@@ -31,5 +31,9 @@ export { researchMailTopic } from "./actions/researchMailTopic";
 export { surveyPortal } from "./surveys/portal";
 export { testmailPortal } from "./integrations/testmailPortal";
 
+// ── Founder Connect ───────────────────────────────────────────────────────
+export { founderPortal } from "./founder/portal";
+export { getLinkedInAuthUrl, connectLinkedIn } from "./founder/linkedinOAuth";
+
 // ── Private beta access ────────────────────────────────────────────────────
 export { accessPortal } from "./access/portal";

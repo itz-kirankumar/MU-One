@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, RefreshCw, Search, ShieldCheck, UserMinus, UserPlus } from 'lucide-react';
+import { ArrowLeft, Check, Eye, RefreshCw, Search, ShieldCheck, UserMinus, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import {
   listPlatformAccess,
@@ -36,7 +36,23 @@ export function AccessControl() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    void listPlatformAccess()
+      .then(result => {
+        if (!active) return;
+        setAdminEmail(result.adminEmail);
+        setGranted(result.granted);
+        setWaitlist(result.waitlist);
+      })
+      .catch(err => {
+        if (active) setError(err instanceof Error ? err.message : 'Unable to load access records.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   async function changeAccess(action: 'grant' | 'revoke', target: string) {
     setWorkingEmail(target);
@@ -79,9 +95,14 @@ export function AccessControl() {
               <p className="text-xs text-gray-500">MU One private beta</p>
             </div>
           </div>
-          <button type="button" onClick={() => void load()} disabled={loading} className="flex items-center gap-2 rounded-lg border border-[#292929] px-3 py-2 text-xs text-gray-300 hover:bg-[#191919] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link href="/dashboard?preview=user" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-[#3b341a] bg-[#211d0d] px-3 py-2 text-xs font-medium text-[#f7d344] hover:bg-[#2b2510] focus-visible:ring-2 focus-visible:ring-[#f7d344]">
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Preview user dashboard
+            </Link>
+            <button type="button" onClick={() => void load()} disabled={loading} className="flex items-center gap-2 rounded-lg border border-[#292929] px-3 py-2 text-xs text-gray-300 hover:bg-[#191919] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20">
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+            </button>
+          </div>
         </div>
       </header>
 

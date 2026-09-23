@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { listPlatformAccess, updatePlatformAccess, type AccessListResult } from '@/lib/functions';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { UserCheck, Clock, Shield, Check, X, ShieldAlert, Eye } from 'lucide-react';
+import { UserCheck, Clock, Shield, Check, X, ShieldAlert, Eye, LayoutDashboard } from 'lucide-react';
 
 export function AdminAccessControl() {
   const [data, setData] = useState<AccessListResult | null>(null);
@@ -25,7 +25,12 @@ export function AdminAccessControl() {
   }
 
   useEffect(() => {
-    void loadData();
+    let active = true;
+    void listPlatformAccess()
+      .then(result => { if (active) setData(result); })
+      .catch(err => { if (active) setError(err instanceof Error ? err.message : 'Failed to load access list.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   async function handleGrant(email: string) {
@@ -86,7 +91,15 @@ export function AdminAccessControl() {
             Manage who can access the MU One private beta.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => window.open('/dashboard?preview=user', '_blank', 'noopener,noreferrer')}
+            className="flex items-center gap-2 rounded-lg border border-[#3b341a] bg-[#211d0d] px-3 py-2 text-xs font-medium text-[#f7d344] transition-colors hover:bg-[#2b2510]"
+          >
+            <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+            Preview: User dashboard
+          </button>
           <button 
             type="button"
             onClick={() => window.open('?preview=waitlist', '_blank')}
