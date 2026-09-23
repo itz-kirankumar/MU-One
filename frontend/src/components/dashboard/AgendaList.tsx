@@ -182,21 +182,17 @@ export function AgendaList() {
 
   const allEvents = useMemo(() => {
     const unique = new Map<string, NormalizedEvent>();
-    [...sharedEvents, ...localEvents].forEach((event, index) => unique.set(eventKey(event, index), event));
+    const source = sectionFilter === 'personal' ? localEvents : sharedEvents;
+    source.forEach((event, index) => unique.set(eventKey(event, index), event));
     return [...unique.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
-  }, [localEvents, sharedEvents]);
+  }, [localEvents, sectionFilter, sharedEvents]);
 
   const subjects = useMemo(() => [...new Set(allEvents.map(eventSubject))].sort((a, b) => a.localeCompare(b)), [allEvents]);
   const events = useMemo(() => allEvents.filter(event => {
     if (subjectFilter !== 'all' && eventSubject(event) !== subjectFilter) return false;
-    
-    // If it's a shared section event, it must match the selected section
+    if (sectionFilter === 'personal') return true;
     const section = eventSection(event);
-    if (section) {
-      if (sectionFilter === 'personal' || (sectionFilter !== 'all' && section !== sectionFilter)) return false;
-    }
-    
-    return true;
+    return section !== null && (sectionFilter === 'all' || section === sectionFilter);
   }), [allEvents, sectionFilter, subjectFilter]);
 
   const grouped = useMemo(() => {
@@ -317,15 +313,15 @@ export function AgendaList() {
             {SECTIONS.map(section => <option key={section} value={section}>Section {section}</option>)}
             <option value="personal">Personal only</option>
           </select>
-          <p className="ml-auto text-[10px] text-gray-600 flex-shrink-0 hidden sm:block">Personal &amp; Shared calendars</p>
+          <p className="ml-auto text-[10px] text-gray-600 flex-shrink-0 hidden sm:block">{sectionFilter === 'personal' ? 'Your calendars' : 'Shared section timetables'}</p>
         </div>
       </div>
 
-      {sharedError && <p role="alert" className="border-b border-red-900/40 bg-red-950/20 px-4 py-2 text-xs text-red-300">{sharedError}</p>}
-      {(loading || sharedLoading) && allEvents.length === 0 ? (
+      {sectionFilter !== 'personal' && sharedError && <p role="alert" className="border-b border-red-900/40 bg-red-950/20 px-4 py-2 text-xs text-red-300">{sharedError}</p>}
+      {(sectionFilter === 'personal' ? loading : sharedLoading) && allEvents.length === 0 ? (
         <div className="grid min-h-64 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#f7d344] border-t-transparent" /></div>
       ) : allEvents.length === 0 ? (
-        <EmptyState icon={Calendar} title="No sessions" description="Personal and shared section calendars will appear here after the next sync." />
+        <EmptyState icon={Calendar} title={sectionFilter === 'personal' ? 'No personal events' : 'No shared sessions'} description={sectionFilter === 'personal' ? 'Your connected calendars will appear here after the next sync.' : 'Sessions appear when a connected shared calendar identifies its section and syncs.'} />
       ) : events.length === 0 ? (
         <EmptyState icon={Calendar} title="No sessions for these filters" description="Choose another subject, section, or date range." />
       ) : view === 'day' ? (

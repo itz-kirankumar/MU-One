@@ -69,16 +69,17 @@ export function extractDescriptionField(
  * - Rejects out-of-range (e.g. 0, 9, 12, Z, I) and returns null.
  */
 export function extractSectionCode(...values: string[]): string | null {
-  const text = values.filter(Boolean).join("\n");
-
-  // Matches "Section A-H", "Sec A-H", "Sec. A-H", "Sec.A", "Section: A", "Sec-A", "Section #A", "Legacy A-H"
-  const letterMatch = text.match(/\b(?:section|sec|legacy)(?:\.|\b)\s*[-:#]?\s*([A-H])\b/i);
-  if (letterMatch) return letterMatch[1].toUpperCase();
-
-  // Matches "Section 1-8", "Sec 1-8", "Sec. 1-8", "Sec.1", "Section: 1", "Sec-1", "Section #1", "Legacy 1-8"
-  const numberMatch = text.match(/\b(?:section|sec|legacy)(?:\.|\b)\s*[-:#]?\s*([1-8])\b/i);
-  if (!numberMatch) return null;
-  return String.fromCharCode(64 + Number(numberMatch[1]));
+  // The calendar name is first and owns the section when it is explicit.
+  // Do not let a letter in an event description override a numeric calendar
+  // name (for example, "Section 5" must remain E even if the body says A).
+  for (const value of values) {
+    const match = value?.match(/\b(?:section|sec|legacy)(?:\.|\b)\s*[-:#]?\s*([A-H]|[1-8])\b/i);
+    if (!match) continue;
+    return /^[1-8]$/.test(match[1])
+      ? String.fromCharCode(64 + Number(match[1]))
+      : match[1].toUpperCase();
+  }
+  return null;
 }
 
 /** Legacy numeric representation retained for existing dashboard snapshots. */

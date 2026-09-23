@@ -149,6 +149,7 @@ jest.mock('@/lib/firestore', () => ({
   subscribeToSharedTimetable: jest.fn((_from: string, _to: string, cb: any, errCb: any) => {
     subscribeCallback = cb;
     subscribeErrorCallback = errCb;
+    if (currentMockLoading) return unsubscribeSpy;
     if (currentMockError) {
       errCb(currentMockError);
     } else {
@@ -420,7 +421,7 @@ describe('E2E Shared Academic Calendars: Frontend Test Suite', () => {
   describe('F11: UI States (Loading, Empty, Retry)', () => {
     it('11.1: Loading copy or spinner is displayed when shared events are loading', () => {
       currentMockEvents = [];
-      mockDashboard.loading = true;
+      currentMockLoading = true;
       const { container } = render(<AgendaList />);
 
       // Verify spinner or loading indicator
@@ -444,7 +445,7 @@ describe('E2E Shared Academic Calendars: Frontend Test Suite', () => {
       mockDashboard.dashboardData = { uid: 'student-1', events: [] };
 
       render(<AgendaList />);
-      expect(screen.getByText(/no sessions/i)).toBeInTheDocument();
+      expect(screen.getByText(/no shared sessions/i)).toBeInTheDocument();
     });
 
     it('11.4: Displays error notification when Firestore subscription returns an error', async () => {
@@ -503,6 +504,32 @@ describe('E2E Shared Academic Calendars: Frontend Test Suite', () => {
   });
 
   describe('F13: Frontend Cross-Source Deduplication (AgendaList.tsx)', () => {
+    it('keeps Sections A and E separate, even when the user has personal events', async () => {
+      const sectionA = { ...mockEvents[0], title: 'Section A class' };
+      const sectionE = { ...mockEvents[0], id: 'shared-secE-1', googleEventId: 'ge-secE-1', sectionCode: 'E', sectionLabel: 'Section E', sectionNumber: 5, title: 'Section E class' };
+      const personal = { ...mockEvents[0], id: 'personal-1', googleEventId: 'ge-personal-1', sectionCode: null, sectionLabel: undefined, sectionNumber: null, sharedTimetable: false, title: 'Private appointment' };
+      currentMockEvents = [sectionA, sectionE];
+      mockDashboard.dashboardData = { uid: 'student-1', events: [personal] };
+
+      render(<AgendaList />);
+      fireEvent.click(screen.getByRole('button', { name: 'day' }));
+      const sectionSelect = screen.getByLabelText('Section');
+      await waitFor(() => expect(sectionSelect).toHaveValue('A'));
+      expect(screen.getByText('Section A class')).toBeVisible();
+      expect(screen.queryByText('Section E class')).not.toBeInTheDocument();
+      expect(screen.queryByText('Private appointment')).not.toBeInTheDocument();
+
+      fireEvent.change(sectionSelect, { target: { value: 'E' } });
+      expect(screen.getByText('Section E class')).toBeVisible();
+      expect(screen.queryByText('Section A class')).not.toBeInTheDocument();
+      expect(screen.queryByText('Private appointment')).not.toBeInTheDocument();
+
+      fireEvent.change(sectionSelect, { target: { value: 'personal' } });
+      expect(screen.getByText('Private appointment')).toBeVisible();
+      expect(screen.queryByText('Section A class')).not.toBeInTheDocument();
+      expect(screen.queryByText('Section E class')).not.toBeInTheDocument();
+    });
+
     it('13.1: Deduplicates duplicate personal and shared events with identical keys', () => {
       const duplicateLocalEvent: NormalizedEvent = {
         ...mockEvents[0],

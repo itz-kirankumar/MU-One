@@ -86,6 +86,7 @@ export function subscribeToSharedTimetable(
 ): Unsubscribe {
   const ref = query(
     collection(db, 'sharedCalendarEvents'),
+    where('sectionVerified', '==', true),
     where('startIso', '>=', fromIso),
     where('startIso', '<=', toIso),
     orderBy('startIso', 'asc'),

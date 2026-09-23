@@ -197,6 +197,7 @@ describe("shared timetable privacy and sanitization", () => {
       expect(published.meetingLink).toBe("https://meet.google.com/abc-def-ghi");
       expect(published.activityType).toBe("Session");
       expect(published.sharedTimetable).toBe(true);
+      expect(published.sectionVerified).toBe(true);
     });
 
     it("STRIPS all personal identifiers and sensitive internal metadata", () => {

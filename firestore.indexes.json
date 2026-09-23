@@ -58,6 +58,14 @@
       ]
     },
     {
+      "collectionGroup": "sharedCalendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sectionVerified", "order": "ASCENDING" },
+        { "fieldPath": "startIso", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "founderProfiles",
       "queryScope": "COLLECTION",
       "fields": [

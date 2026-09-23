@@ -300,6 +300,21 @@ describe("normalizeEvent", () => {
     expect(result.sectionCode).toBe("E");
   });
 
+  it("keeps the shared calendar's section when event text names a different section", () => {
+    const result = normalizeEvent(
+      { ...baseEvent, description: "Course Name: Consumer Behaviour\nSection A" },
+      "Section 5 - Term 3 - PGPTBMYLC2",
+      "shared-calendar"
+    );
+    expect(result.sectionCode).toBe("E");
+    expect(result.sectionNumber).toBe(5);
+  });
+
+  it("leaves unlabelled events without a section", () => {
+    const result = normalizeEvent(baseEvent, "Shared academic calendar", "shared-calendar");
+    expect(result.sectionCode).toBeNull();
+  });
+
   it("captures sourceUpdateTime from Google event updated property", () => {
     const timestamp = "2026-09-21T15:30:00.000Z";
     const result = normalizeEvent(
@@ -310,4 +325,3 @@ describe("normalizeEvent", () => {
     expect(result.sourceUpdateTime).toBe(timestamp);
   });
 });
-

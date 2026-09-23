@@ -73,34 +73,6 @@ export async function syncUserCalendar(
   let coverageComplete = true;
 
   const db = getDb();
-  let fallbackSectionCode: string | null = null;
-  try {
-    const userDoc = await db.collection("users").doc(uid).get();
-    const email = userDoc.get("email");
-    fallbackSectionCode = userDoc.get("section");
-    if (!fallbackSectionCode && email) {
-      const waitlistDoc = await db.collection("platformWaitlist").doc(email).get();
-      if (waitlistDoc.exists) fallbackSectionCode = waitlistDoc.get("section");
-      if (!fallbackSectionCode) {
-        const accessDoc = await db.collection("platformAccess").doc(email).get();
-        if (accessDoc.exists) fallbackSectionCode = accessDoc.get("section");
-      }
-    }
-  } catch (err) {
-    // Ignore db read errors for fallback section
-  }
-
-  // Normalize fallback string (e.g. "A", "Section C", "Legacy 2") to a valid A-H char
-  let parsedFallback: string | null = null;
-  if (fallbackSectionCode) {
-    const directMatch = fallbackSectionCode.trim().toUpperCase().match(/^[A-H]$/);
-    if (directMatch) {
-      parsedFallback = directMatch[0];
-    } else {
-      const letterMatch = fallbackSectionCode.match(/\b([A-H])\b/i);
-      if (letterMatch) parsedFallback = letterMatch[1].toUpperCase();
-    }
-  }
 
   // List all calendars
   let calendarList: CalendarSource[] = [];
@@ -162,11 +134,6 @@ export async function syncUserCalendar(
         }
 
         const normalized = normalizeEvent(event as Record<string, unknown>, cal.summary, cal.id);
-        
-        if (!normalized.sectionCode && parsedFallback) {
-          normalized.sectionCode = parsedFallback;
-          normalized.sectionNumber = parsedFallback.charCodeAt(0) - 64;
-        }
 
         const sourceUpdateTime =
           typeof event.updated === "string" ? event.updated : (normalized.sourceUpdateTime || "");
@@ -249,7 +216,10 @@ export async function syncUserCalendar(
         if (existingDoc && existingDoc.exists) {
           const existingData = existingDoc.data();
           const existingSourceUpdate = (existingData?.sourceUpdateTime as string) || "";
-          shouldWrite = shouldOverwriteSession(existingSourceUpdate, sourceUpdateTime);
+          // Re-publish older documents without verification even when Google
+          // has not changed the event timestamp since the previous sync.
+          shouldWrite = existingData?.sectionVerified !== true ||
+            shouldOverwriteSession(existingSourceUpdate, sourceUpdateTime);
         }
       } catch {
         // If read fails (e.g. offline/mock), proceed to write

@@ -97,6 +97,7 @@ export interface NormalizedEvent {
   sectionCode?: string | null;
   sectionLabel?: string;
   sharedTimetable?: boolean;
+  sectionVerified?: boolean;
 }
 
 // ── Mail ───────────────────────────────────────────────────────────────────

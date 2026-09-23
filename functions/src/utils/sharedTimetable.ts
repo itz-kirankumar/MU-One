@@ -41,6 +41,7 @@ export interface RawGoogleEvent {
  * - subject: matches course
  * - activityType: matches eventType ('Session')
  * - sharedTimetable: boolean true
+ * - sectionVerified: the section came from explicit calendar/event metadata
  */
 export interface SanitizedSharedEvent {
   section: string;
@@ -61,6 +62,7 @@ export interface SanitizedSharedEvent {
   activityType: string;
   sourceUpdateTime: string;
   sharedTimetable: true;
+  sectionVerified: true;
 }
 
 /** Personal primary calendars and user-owned secondary calendars are private. */
@@ -253,5 +255,6 @@ export function toPublicTimetableEvent(
     activityType: "Session",
     sourceUpdateTime: updateTime,
     sharedTimetable: true,
+    sectionVerified: true,
   };
 }

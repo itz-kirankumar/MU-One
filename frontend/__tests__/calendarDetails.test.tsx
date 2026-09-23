@@ -50,7 +50,7 @@ jest.mock('../src/contexts/DashboardContext', () => ({
 
 jest.mock('../src/lib/firestore', () => ({
   subscribeToSharedTimetable: (_from: string, _to: string, callback: (events: NormalizedEvent[]) => void) => {
-    callback([]);
+    callback([currentEvent, futureEvent]);
     return jest.fn();
   },
 }));
