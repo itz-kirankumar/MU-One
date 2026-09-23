@@ -153,8 +153,10 @@ export async function listPlatformAccess(): Promise<AccessListResult> {
   return result.data;
 }
 
-export async function updatePlatformAccess(action: 'grant' | 'revoke', email: string): Promise<void> {
-  const fn = httpsCallable<{ action: 'grant' | 'revoke'; email: string }, { success: boolean }>(functions, 'accessPortal');
+type PlatformAccessAction = 'grant' | 'revoke' | 'invite_community';
+
+export async function updatePlatformAccess(action: PlatformAccessAction, email: string): Promise<void> {
+  const fn = httpsCallable<{ action: PlatformAccessAction; email: string }, { success: boolean }>(functions, 'accessPortal');
   await fn({ action, email });
 }
 
