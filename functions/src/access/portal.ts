@@ -10,6 +10,7 @@ import {
 import { getDb } from "../utils/getDb";
 import { waitlistHtml } from "../utils/waitlistEmailTemplate";
 import { approvedHtml } from "../utils/approvedEmailTemplate";
+import { communityHtml } from "../utils/communityEmailTemplate";
 
 const MU_EMAIL = /^[^\s@]+@mastersunion\.org$/i;
 const WAITLIST_MESSAGE = "You will be soon notified once access has been rolled out to you.";
@@ -194,6 +195,24 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
       status: "waiting",
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    return { success: true };
+  }
+
+  if (action === "invite_community") {
+    try {
+      const resendApiKey = process.env.RESEND_API_KEY || "";
+      const resend = new Resend(resendApiKey);
+      
+      await resend.emails.send({
+        from: "MU One <hello@muone.live>",
+        to: targetEmail,
+        subject: "Join the MU One Beta Community",
+        html: communityHtml,
+      });
+    } catch (err) {
+      console.error("Failed to send community invite email via Resend:", err);
+      throw new HttpsError("internal", "Failed to send email");
+    }
     return { success: true };
   }
 

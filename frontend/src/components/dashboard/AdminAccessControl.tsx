@@ -61,6 +61,18 @@ export function AdminAccessControl() {
     }
   }
 
+  async function handleInviteCommunity(email: string) {
+    setProcessing(email);
+    try {
+      await updatePlatformAccess('invite_community', email);
+      alert('Community invite sent to ' + email);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to send invite');
+    } finally {
+      setProcessing(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -231,20 +243,33 @@ export function AdminAccessControl() {
                         </div>
                       </div>
                       {!isAdmin && (
-                        <button
-                          onClick={() => handleRevoke(user.email)}
-                          disabled={processing === user.email}
-                          className="ml-4 flex items-center gap-1.5 rounded-md bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-50"
-                        >
-                          {processing === user.email ? (
-                            <LoadingSpinner size="sm" />
-                          ) : (
-                            <>
-                              <X className="h-3.5 w-3.5" />
-                              Revoke
-                            </>
-                          )}
-                        </button>
+                        <div className="ml-4 flex items-center gap-2">
+                          <button
+                            onClick={() => handleInviteCommunity(user.email)}
+                            disabled={processing === user.email}
+                            className="flex items-center gap-1.5 rounded-md bg-[#f7d344] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#ffe36c] disabled:opacity-50"
+                          >
+                            {processing === user.email ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              'Send Invite'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleRevoke(user.email)}
+                            disabled={processing === user.email}
+                            className="flex items-center gap-1.5 rounded-md bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+                          >
+                            {processing === user.email ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <>
+                                <X className="h-3.5 w-3.5" />
+                                Revoke
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </li>
                   );

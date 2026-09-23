@@ -1,0 +1,86 @@
+export const communityHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Join the MU One Beta Community</title>
+<style>
+  body {
+    margin: 0; padding: 0; background-color: #F8F7F4; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111;
+  }
+  table { border-spacing: 0; border-collapse: collapse; }
+  td { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8F7F4;">
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#F8F7F4" style="background-color: #F8F7F4;">
+  <tr>
+    <td align="center" style="padding: 60px 20px;">
+      <table border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; width: 100%;">
+        <tr>
+          <td align="left">
+            
+            <!-- Header -->
+            <table border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 40px;">
+              <tr>
+                <td valign="middle">
+                  <table border="0" cellspacing="0" cellpadding="0" style="margin-right: 12px; width: 28px; height: 28px; background-color: #f7d344; border-radius: 6px;">
+                    <tr>
+                      <td align="center" valign="middle" style="width: 28px; height: 28px; font-size: 13px; font-weight: 800; color: #111; line-height: 1;">
+                        MU
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td valign="middle" style="font-size: 18px; font-weight: 700; letter-spacing: -0.5px;">
+                  MU One
+                </td>
+              </tr>
+            </table>
+
+            <h1 style="font-size: 36px; font-weight: 700; letter-spacing: -1px; margin: 0 0 24px 0; line-height: 1.15; color: #111;">Help shape MU One.</h1>
+            
+            <p style="font-size: 16px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">Hi there,</p>
+            <p style="font-size: 16px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">
+              Now that access has been rolled out to you and you've had a chance to explore the platform, I'd love for you to join our official beta community!
+            </p>
+
+            <div style="background-color: #fff; border: 1px solid #eaeaea; border-radius: 16px; padding: 32px; margin-bottom: 40px; text-align: center;">
+              <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 12px 0; color: #111;">Join the Beta Community</h2>
+              <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 24px 0;">
+                Connect with other testers, report bugs, suggest new features, and discuss workflows that we should build next.
+              </p>
+              <a href="https://chat.whatsapp.com/LXVu08eKO8ZJwdQ1ujnNAZ?s=sw&p=a&mlu=4&ilr=4" style="display: inline-block; background-color: #f7d344; color: #111; font-weight: 700; font-size: 16px; text-decoration: none; padding: 16px 32px; border-radius: 8px;">Join the Community</a>
+            </div>
+
+            <p style="font-size: 15px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">
+              This platform is being built entirely for students, by a student. Whether you found a bug in the timeline, have an idea for a new AI tool, or just want to tell me what workflows take up too much of your time, this community is the best place to share it.
+            </p>
+
+            <p style="font-size: 15px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">
+              Your feedback directly determines what I build next.
+            </p>
+
+            <div style="height: 1px; background: #eaeaea; margin: 40px 0; font-size: 0; line-height: 0;">&nbsp;</div>
+
+            <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 24px 0;">
+              See you there,
+            </p>
+            <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0;">
+              Best,<br>
+              <strong style="color: #111;">Kiran Kumar G</strong><br>
+              Creator, MU One<br>
+              <a href="mailto:kiran.kumar2028@mastersunion.org" style="color: #555; text-decoration: none;">kiran.kumar2028@mastersunion.org</a><br>
+              <a href="https://muone.live" style="color: #f7d344; text-decoration: none; font-weight: 600;">muone.live</a>
+            </p>
+
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
+`;
