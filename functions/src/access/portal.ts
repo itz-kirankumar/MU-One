@@ -9,6 +9,7 @@ import {
 } from "../utils/domainCheck";
 import { getDb } from "../utils/getDb";
 import { waitlistHtml } from "../utils/waitlistEmailTemplate";
+import { approvedHtml } from "../utils/approvedEmailTemplate";
 
 const MU_EMAIL = /^[^\s@]+@mastersunion\.org$/i;
 const WAITLIST_MESSAGE = "You will be soon notified once access has been rolled out to you.";
@@ -168,6 +169,21 @@ export const accessPortal = onCall({ region: "us-central1", timeoutSeconds: 30 }
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
     await batch.commit();
+
+    try {
+      const resendApiKey = process.env.RESEND_API_KEY || "";
+      const resend = new Resend(resendApiKey);
+      
+      await resend.emails.send({
+        from: "MU One <hello@muone.live>",
+        to: targetEmail,
+        subject: "You're in! Welcome to MU One Beta",
+        html: approvedHtml,
+      });
+    } catch (err) {
+      console.error("Failed to send approval email via Resend:", err);
+    }
+
     return { success: true };
   }
 

@@ -1,0 +1,82 @@
+export const approvedHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Welcome to MU One Beta</title>
+<style>
+  body {
+    margin: 0; padding: 0; background-color: #F8F7F4; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111;
+  }
+  table { border-spacing: 0; border-collapse: collapse; }
+  td { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8F7F4;">
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#F8F7F4" style="background-color: #F8F7F4;">
+  <tr>
+    <td align="center" style="padding: 60px 20px;">
+      <table border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; width: 100%;">
+        <tr>
+          <td align="left">
+            
+            <!-- Header -->
+            <table border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 40px;">
+              <tr>
+                <td valign="middle">
+                  <table border="0" cellspacing="0" cellpadding="0" style="margin-right: 12px; width: 28px; height: 28px; background-color: #f7d344; border-radius: 6px;">
+                    <tr>
+                      <td align="center" valign="middle" style="width: 28px; height: 28px; font-size: 13px; font-weight: 800; color: #111; line-height: 1;">
+                        MU
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td valign="middle" style="font-size: 18px; font-weight: 700; letter-spacing: -0.5px;">
+                  MU One
+                </td>
+              </tr>
+            </table>
+
+            <h1 style="font-size: 36px; font-weight: 700; letter-spacing: -1px; margin: 0 0 24px 0; line-height: 1.15; color: #111;">You're in!</h1>
+            
+            <p style="font-size: 16px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">Hi there,</p>
+            <p style="font-size: 16px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">
+              Your access to the MU One private beta has just been approved. You can now log in and explore the dashboard.
+            </p>
+
+            <div style="background-color: #fff; border: 1px solid #eaeaea; border-radius: 16px; padding: 32px; margin-bottom: 40px; text-align: center;">
+              <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 12px 0; color: #111;">Access Your Dashboard</h2>
+              <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 24px 0;">
+                Log in with your Masters' Union email address to get started.
+              </p>
+              <a href="https://muone.live/dashboard" style="display: inline-block; background-color: #f7d344; color: #111; font-weight: 700; font-size: 16px; text-decoration: none; padding: 16px 32px; border-radius: 8px;">Enter MU One</a>
+            </div>
+
+            <p style="font-size: 15px; color: #444; line-height: 1.6; margin: 0 0 24px 0;">
+              Since this is an early beta, things might change, break, or improve rapidly. Please share your feedback so we can build exactly what you need.
+            </p>
+
+            <div style="height: 1px; background: #eaeaea; margin: 40px 0; font-size: 0; line-height: 0;">&nbsp;</div>
+
+            <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 24px 0;">
+              Welcome aboard,
+            </p>
+            <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0;">
+              Best,<br>
+              <strong style="color: #111;">Kiran Kumar G</strong><br>
+              Creator, MU One<br>
+              <a href="mailto:kiran.kumar2028@mastersunion.org" style="color: #555; text-decoration: none;">kiran.kumar2028@mastersunion.org</a><br>
+              <a href="https://muone.live" style="color: #f7d344; text-decoration: none; font-weight: 600;">muone.live</a>
+            </p>
+
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
+`;
