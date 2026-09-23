@@ -13,13 +13,30 @@ interface CalendarEventCardProps {
 export function CalendarEventCard({ event, onAddTask }: CalendarEventCardProps) {
   const details = getCalendarEventDetails(event);
 
+  const direct = String(event.sectionCode || '').trim().toUpperCase();
+  let section = null;
+  if (/^[A-H]$/.test(direct)) {
+    section = direct;
+  } else {
+    const label = String(event.sectionLabel || '').match(/\b(?:section|sec)\s*[-:#]?\s*([A-H]|[1-8])\b/i)?.[1];
+    if (label) {
+      section = /^\d$/.test(label) ? String.fromCharCode(64 + Number(label)) : label.toUpperCase();
+    } else {
+      const legacy = Number(event.sectionNumber);
+      if (legacy >= 1 && legacy <= 8) section = String.fromCharCode(64 + legacy);
+    }
+  }
+
   return (
     <article className="rounded-xl border border-[#36311f] bg-[#15140f] p-3 transition-colors hover:border-[#64582a]">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="break-words text-[10px] font-semibold uppercase tracking-[0.1em] text-[#f7d344]">
-            {details.course}
-          </p>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="break-words text-[10px] font-semibold uppercase tracking-[0.1em] text-[#f7d344]">
+              {details.course}
+            </p>
+            {section && <span className="text-[10px] font-medium text-gray-500">Section {section}</span>}
+          </div>
           <h4 className="mt-1 break-words text-sm font-semibold leading-5 text-white">
             {details.title}
           </h4>
