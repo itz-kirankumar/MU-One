@@ -113,7 +113,13 @@ export interface CourseStats extends CourseMeta {
   p75: number;
   fill: number; // count / capacity
   status: FillStatus;
-  /** Lowest bid that currently wins a seat (uniform-price clearing). */
+  /**
+   * Bid you must beat to get a seat if bidding closed now: the lowest bid still
+   * inside the top `capacity` bids. `null` while bids ≤ seats (no cutoff — any
+   * bid above 0 gets in).
+   */
+  cutoff: number | null;
+  /** @deprecated Kept so tabs still running the previous build don't crash. Use `cutoff`. */
   clearingPrice: number;
   seatsLeft: number;
 }
@@ -198,12 +204,11 @@ export function percentile(sorted: number[], p: number): number {
 }
 
 /**
- * Uniform-price clearing: if bids <= seats everyone with a bid gets in and the
- * price is the lowest bid; otherwise it is the bid of the last seat filled.
+ * Seat cutoff. While bids ≤ seats there is no cutoff (null). Once a course is
+ * oversubscribed it is the bid holding the last seat — the capacity-th highest.
  */
-export function clearingPriceFor(sortedAsc: number[], capacity: number): number {
-  if (!sortedAsc.length) return 0;
-  if (sortedAsc.length <= capacity) return sortedAsc[0];
+export function cutoffFor(sortedAsc: number[], capacity: number): number | null {
+  if (sortedAsc.length <= capacity) return null;
   return sortedAsc[sortedAsc.length - capacity];
 }
 
@@ -292,7 +297,8 @@ export function buildPayload(rawCsv: string, capacities: Record<string, number>)
       p75: percentile(bids, 0.75),
       fill,
       status: statusFor(fill),
-      clearingPrice: clearingPriceFor(bids, capacity),
+      cutoff: cutoffFor(bids, capacity),
+      clearingPrice: cutoffFor(bids, capacity) ?? bids[0] ?? 0,
       seatsLeft: Math.max(0, capacity - count),
     };
   });

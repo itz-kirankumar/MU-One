@@ -13,7 +13,7 @@ import {
 // the link" CSV export, so no Google credentials are stored on the server.
 export const dynamic = 'force-dynamic';
 
-const CACHE_MS = 15_000;
+const CACHE_MS = 10_000;
 let cached: { at: number; payload: SmartBidPayload } | null = null;
 let inflight: Promise<SmartBidPayload> | null = null;
 
@@ -41,7 +41,7 @@ export async function GET() {
   const headers = {
     // Let Vercel's edge serve repeat hits so hundreds of students refreshing
     // at once don't each hit Google.
-    'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=30',
+    'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=10',
   };
 
   if (cached && Date.now() - cached.at < CACHE_MS) {

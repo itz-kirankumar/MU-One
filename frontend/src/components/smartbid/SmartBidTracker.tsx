@@ -37,12 +37,12 @@ import {
   type SmartBidPayload,
 } from '@/lib/smartbid';
 
-const REFRESH_MS = 30_000;
-const STALE_MS = 2 * 60_000;
+const REFRESH_MS = 15_000;
+const STALE_MS = 60_000;
 const DEADLINE = new Date(SMARTBID_DEADLINE_ISO).getTime();
 
 const fmt = (n: number, digits = 0) =>
-  n.toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+  (Number.isFinite(n) ? n : 0).toLocaleString('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 const pct = (n: number) => `${(n * 100).toFixed(n < 0.1 ? 1 : 0)}%`;
 
 // ─── Data hook ───────────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ function LiveStatus({
         <span className={`h-2 w-2 rounded-full ${m.dot}`} aria-hidden="true" />
         <span className={`font-medium ${m.text}`}>{m.label}</span>
         {ageText && <span className="text-gray-500">· updated {ageText}</span>}
-        <span className="hidden text-gray-600 sm:inline">· auto-refresh 30s</span>
+        <span className="hidden text-gray-600 sm:inline">· auto-refresh 15s</span>
       </div>
       <button
         onClick={onRefresh}
@@ -367,10 +367,14 @@ function CourseCard({ c, open, onToggle }: { c: CourseStats; open: boolean; onTo
         </dl>
 
         <div className="flex items-center justify-between rounded-lg border border-[#2A2A2A] bg-[#111] px-3 py-2">
-          <span className="text-xs text-gray-400">Clearing price today</span>
-          <span className="text-sm font-bold tabular-nums text-[#f7d344]">
-            {c.count ? `${fmt(c.clearingPrice)} pts` : '—'}
-          </span>
+          <span className="text-xs text-gray-400">Seat cutoff right now</span>
+          {c.cutoff == null ? (
+            <span className="text-right text-xs font-semibold text-[#4ADE80]">
+              No cutoff · any bid &gt; 0 gets in
+            </span>
+          ) : (
+            <span className="text-sm font-bold tabular-nums text-[#FF6B6B]">Beat {fmt(c.cutoff)} pts</span>
+          )}
         </div>
 
         <button
@@ -467,7 +471,7 @@ function ClearingTable({ courses }: { courses: CourseStats[] }) {
         <SectionTitle
           icon={Gauge}
           title="Seats vs bids"
-          sub="Clearing price = the lowest bid that still wins a seat if bidding closed now."
+          sub="Cutoff = the bid holding the last seat if bidding closed now. Only exists once bids exceed seats."
         />
       </div>
       <div className="overflow-x-auto custom-scrollbar">
@@ -477,7 +481,8 @@ function ClearingTable({ courses }: { courses: CourseStats[] }) {
               <th className="px-4 py-2 font-medium">Course</th>
               <th className="px-3 py-2 text-right font-medium">Bids / Seats</th>
               <th className="px-3 py-2 text-right font-medium">Median</th>
-              <th className="px-3 py-2 text-right font-medium">Clearing</th>
+              <th className="px-3 py-2 text-right font-medium">Lowest bid</th>
+              <th className="px-3 py-2 text-right font-medium">Cutoff</th>
               <th className="px-4 py-2 text-right font-medium">Status</th>
             </tr>
           </thead>
@@ -496,8 +501,13 @@ function ClearingTable({ courses }: { courses: CourseStats[] }) {
                     {c.count} / {c.capacity}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-gray-300">{c.count ? fmt(c.median) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-[#f7d344]">
-                    {c.count ? fmt(c.clearingPrice) : '—'}
+                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-300">{c.count ? fmt(c.min) : '—'}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
+                    {c.cutoff == null ? (
+                      <span className="text-xs font-medium text-[#4ADE80]">None</span>
+                    ) : (
+                      <span className="text-[#FF6B6B]">{fmt(c.cutoff)}</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <StatusBadge s={c.status} />
@@ -573,7 +583,8 @@ function Planner({ courses }: { courses: CourseStats[] }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-white">{c.name}</p>
                   <p className="text-[11px] text-gray-500">
-                    Guide ~{fmt(c.credits * POINTS_PER_CREDIT_GUIDE)} pts · clearing now {fmt(c.clearingPrice)}
+                    Guide ~{fmt(c.credits * POINTS_PER_CREDIT_GUIDE)} pts ·{' '}
+                    {c.cutoff == null ? `no cutoff (${c.seatsLeft} seats spare)` : `cutoff ${fmt(c.cutoff)}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -659,7 +670,7 @@ function Insights({ data }: { data: SmartBidPayload }) {
       out.push({
         tone: 'warn',
         text: `${over.map((c) => c.name).join(', ')} ${over.length > 1 ? 'have' : 'has'} more bids than seats — a bid below ${over
-          .map((c) => fmt(c.clearingPrice))
+          .map((c) => fmt(c.cutoff ?? 0))
           .join(' / ')} pts would miss out right now.`,
       });
     } else {
@@ -700,8 +711,8 @@ function Insights({ data }: { data: SmartBidPayload }) {
         ))}
       </ul>
       <p className="mt-3 border-t border-[#222] pt-3 text-[11px] leading-relaxed text-gray-500">
-        Clearing assumes a uniform-price auction (everyone admitted pays the lowest winning bid). Check the official bidding
-        policy for how points are charged and refunded.
+        Cutoffs rank the bids in this sheet against seats. The sheet is self-reported by students, so the official portal may
+        differ. Check the official bidding policy for how points are charged and refunded.
       </p>
     </Card>
   );
@@ -783,7 +794,7 @@ export function SmartBidTracker() {
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#f7d344]">Term 3 · Elective bidding</p>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Live bid tracker</h1>
             <p className="max-w-xl text-sm text-gray-400">
-              Seats, bids and clearing prices for every Term 3 elective, straight from the batch&apos;s bidding sheet. Free
+              Seats, bids and seat cutoffs for every Term 3 elective, straight from the batch&apos;s bidding sheet. Free
               for every student — no login.
             </p>
             <LiveStatus
