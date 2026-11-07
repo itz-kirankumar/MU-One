@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ServiceWorkerRegistrar } from '@/components/pwa/ServiceWorkerRegistrar';
+import { Analytics } from '@vercel/analytics/next';
 import { InstallBanner } from '@/components/pwa/InstallBanner';
 import './globals.css';
 
@@ -71,6 +72,7 @@ export default function RootLayout({
           <InstallBanner />
         </AuthProvider>
         <ServiceWorkerRegistrar />
+        <Analytics />
       </body>
     </html>
   );
