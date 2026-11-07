@@ -223,7 +223,7 @@ function useFrameClock() {
 function Countdown() {
   const now = useFrameClock();
   const left = DEADLINE - now;
-  if (!now) return <div className="h-[86px] w-[260px]" aria-hidden="true" />;
+  if (!now) return <div className="h-[70px] w-full sm:h-[86px] sm:w-[260px]" aria-hidden="true" />;
   if (left <= 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-[#FF6B6B]">
@@ -243,14 +243,17 @@ function Countdown() {
   ] as const;
   return (
     <div>
-      <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-gray-500">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-500 sm:mb-2 sm:text-[11px]">
         <Clock className="h-3 w-3" aria-hidden="true" /> Bidding closes 7 Nov · 11:59 PM IST
       </p>
-      <div className="flex gap-2">
+      <div className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
         {units.map(([v, l]) => (
-          <div key={l} className="min-w-[58px] rounded-lg border border-[#2A2A2A] bg-[#111] px-2 py-1.5 text-center">
+          <div
+            key={l}
+            className="rounded-lg border border-[#2A2A2A] bg-[#111] px-1 py-1 text-center sm:min-w-[58px] sm:px-2 sm:py-1.5"
+          >
             <div
-              className={`text-xl font-bold tabular-nums ${
+              className={`text-lg font-bold tabular-nums sm:text-xl ${
                 l === 'ms' ? 'text-[#f7d344]' : h < 2 ? 'text-[#FF6B6B]' : 'text-white'
               }`}
             >
@@ -266,14 +269,14 @@ function Countdown() {
 
 function Kpi({ label, value, sub, loading }: { label: string; value: string; sub?: string; loading: boolean }) {
   return (
-    <Card className="px-4 py-3.5">
-      <p className="text-[11px] uppercase tracking-wider text-gray-500">{label}</p>
+    <Card className="min-w-0 px-2.5 py-2 sm:px-4 sm:py-3.5">
+      <p className="truncate text-[9px] uppercase tracking-wider text-gray-500 sm:text-[11px]">{label}</p>
       {loading ? (
-        <div className="mt-2 h-7 w-16 animate-pulse rounded bg-[#2A2A2A]" />
+        <div className="mt-1.5 h-6 w-12 animate-pulse rounded bg-[#2A2A2A] sm:mt-2 sm:h-7 sm:w-16" />
       ) : (
-        <p className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</p>
+        <p className="mt-0.5 text-lg font-bold tabular-nums text-white sm:mt-1 sm:text-2xl">{value}</p>
       )}
-      {sub && !loading && <p className="mt-0.5 truncate text-xs text-gray-500">{sub}</p>}
+      {sub && !loading && <p className="mt-0.5 hidden truncate text-xs text-gray-500 sm:block">{sub}</p>}
     </Card>
   );
 }
@@ -313,81 +316,112 @@ function Histogram({ bids, color }: { bids: number[]; color: string }) {
   );
 }
 
+function FacultyLinks({ faculty }: { faculty: CourseStats['faculty'] }) {
+  return (
+    <>
+      {faculty.map((f) =>
+        f.linkedin ? (
+          <a
+            key={f.name}
+            href={f.linkedin}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${f.name} on LinkedIn`}
+            className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-normal text-gray-400 underline decoration-[#333] underline-offset-2 hover:text-[#f7d344] hover:decoration-[#f7d344]"
+          >
+            {f.name}
+            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+          </a>
+        ) : (
+          <span key={f.name} className="whitespace-nowrap text-[11px] font-normal text-gray-400">
+            {f.name}
+          </span>
+        ),
+      )}
+    </>
+  );
+}
+
 function CourseCard({ c, open, onToggle }: { c: CourseStats; open: boolean; onToggle: () => void }) {
   const { color } = CONCENTRATIONS[c.concentration];
   const st = STATUS_STYLE[c.status];
   return (
     <Card className="flex flex-col overflow-hidden transition-colors hover:border-[#2A2A2A]">
       <div className="h-0.5" style={{ background: color }} />
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="mb-1 flex items-center gap-1.5">
-              <ConcBadge c={c.concentration} />
-              <span className="text-[10px] text-gray-500">
-                {c.code} · {c.credits} cr
-              </span>
-            </div>
-            <h3 className="text-[15px] font-semibold leading-snug text-white">{c.name}</h3>
-            <p className="mt-0.5 truncate text-xs text-gray-500">{c.faculty.map((f) => f.name).join(', ')}</p>
+      <div className="flex flex-1 flex-col gap-2.5 p-3 sm:gap-3 sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <ConcBadge c={c.concentration} />
+            <span className="text-[10px] text-gray-500">
+              {c.code} · {c.credits} cr
+            </span>
           </div>
           <StatusBadge s={c.status} />
         </div>
 
+        <h3 className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[15px] font-semibold leading-snug text-white">
+          <span>{c.name}</span>
+          <FacultyLinks faculty={c.faculty} />
+        </h3>
+
         <div>
           <div className="mb-1 flex justify-between text-xs">
             <span className="text-gray-400">
-              <span className="font-semibold tabular-nums text-white">{c.count}</span> bids /{' '}
+              <span className="font-semibold tabular-nums text-white">{c.count}</span> /{' '}
               <span className="tabular-nums">{c.capacity}</span> seats
+              <span className="text-gray-600">
+                {' · '}
+                {c.status === 'oversubscribed' ? `${c.count - c.capacity} over` : `${c.seatsLeft} left`}
+              </span>
             </span>
             <span className="tabular-nums text-gray-400">{pct(c.fill)}</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-[#222]">
             <div className={`h-full rounded-full ${st.bar}`} style={{ width: `${Math.min(100, c.fill * 100)}%` }} />
           </div>
-          <p className="mt-1 text-[11px] text-gray-500">
-            {c.status === 'oversubscribed'
-              ? `${c.count - c.capacity} more bids than seats`
-              : `${c.seatsLeft} seats still unclaimed`}
-          </p>
         </div>
 
-        <dl className="grid grid-cols-4 gap-2 text-center">
+        <dl className="grid grid-cols-4 gap-1.5 text-center sm:gap-2">
           {[
             ['Median', c.median],
             ['Avg', c.avg],
             ['Min', c.min],
             ['Max', c.max],
           ].map(([l, v]) => (
-            <div key={l as string} className="rounded-lg bg-[#111] px-1 py-1.5">
+            <div key={l as string} className="rounded-lg bg-[#111] px-1 py-1 sm:py-1.5">
               <dt className="text-[10px] text-gray-500">{l}</dt>
-              <dd className="text-sm font-semibold tabular-nums text-white">{c.count ? fmt(v as number) : '—'}</dd>
+              <dd className="text-[13px] font-semibold tabular-nums text-white sm:text-sm">
+                {c.count ? fmt(v as number) : '—'}
+              </dd>
             </div>
           ))}
         </dl>
 
-        <div className="flex items-center justify-between rounded-lg border border-[#2A2A2A] bg-[#111] px-3 py-2">
-          <span className="text-xs text-gray-400">Seat cutoff right now</span>
-          {c.cutoff == null ? (
-            <span className="text-right text-xs font-semibold text-[#4ADE80]">
-              No cutoff · any bid &gt; 0 gets in
-            </span>
-          ) : (
-            <span className="text-sm font-bold tabular-nums text-[#FF6B6B]">Beat {fmt(c.cutoff)} pts</span>
-          )}
+        <div className="mt-auto flex items-stretch gap-2">
+          <div className="flex flex-1 items-center justify-between gap-2 rounded-lg border border-[#2A2A2A] bg-[#111] px-2.5 py-1.5 sm:px-3 sm:py-2">
+            <span className="text-xs text-gray-400">Cutoff</span>
+            {c.cutoff == null ? (
+              <span className="text-right text-xs font-semibold text-[#4ADE80]">None · any bid &gt; 0 gets in</span>
+            ) : (
+              <span className="text-sm font-bold tabular-nums text-[#FF6B6B]">Beat {fmt(c.cutoff)} pts</span>
+            )}
+          </div>
+          <button
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-label={`${open ? 'Hide' : 'Show'} bid distributions`}
+            title={`${open ? 'Hide' : 'Show'} bid distributions`}
+            className={`flex items-center gap-1 rounded-lg border px-2.5 text-xs transition-colors ${
+              open ? 'border-[#f7d344]/60 bg-[#1C1A0E] text-[#f7d344]' : 'border-[#2A2A2A] bg-[#111] text-gray-400 hover:text-white'
+            }`}
+          >
+            <span className="hidden sm:inline">Bids</span>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
         </div>
 
-        <button
-          onClick={onToggle}
-          aria-expanded={open}
-          className="mt-auto flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-white"
-        >
-          {open ? 'Hide' : 'Show'} distributions
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-        </button>
-
         {open && (
-          <div className="space-y-3 border-t border-[#222] pt-3">
+          <div className="space-y-2.5 border-t border-[#222] pt-2.5">
             <Histogram bids={c.bids} color={color} />
             <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
               <div>
@@ -403,25 +437,6 @@ function CourseCard({ c, open, onToggle }: { c: CourseStats; open: boolean; onTo
                 <p className="tabular-nums text-white">{c.zeroBids}</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {c.faculty.map((f) =>
-                f.linkedin ? (
-                  <a
-                    key={f.name}
-                    href={f.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#f7d344]"
-                  >
-                    {f.name} <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                  </a>
-                ) : (
-                  <span key={f.name} className="text-[11px] text-gray-400">
-                    {f.name}
-                  </span>
-                ),
-              )}
-            </div>
           </div>
         )}
       </div>
@@ -433,7 +448,7 @@ function CourseCard({ c, open, onToggle }: { c: CourseStats; open: boolean; onTo
 
 function ConcentrationSplit({ data }: { data: SmartBidPayload }) {
   return (
-    <Card className="p-4">
+    <Card className="p-3 sm:p-4">
       <SectionTitle icon={Layers} title="Concentration choices" sub="From every form response" />
       <div className="space-y-4">
         {CONCENTRATION_PAIRS.map(([a, b]) => {
@@ -467,56 +482,66 @@ function ConcentrationSplit({ data }: { data: SmartBidPayload }) {
 function ClearingTable({ courses }: { courses: CourseStats[] }) {
   return (
     <Card className="overflow-hidden">
-      <div className="p-4 pb-2">
+      <div className="p-3 pb-1 sm:p-4 sm:pb-2">
         <SectionTitle
           icon={Gauge}
           title="Seats vs bids"
           sub="Cutoff = the bid holding the last seat if bidding closed now. Only exists once bids exceed seats."
         />
       </div>
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead>
-            <tr className="border-y border-[#222] text-left text-[11px] uppercase tracking-wider text-gray-500">
-              <th className="px-4 py-2 font-medium">Course</th>
-              <th className="px-3 py-2 text-right font-medium">Bids / Seats</th>
-              <th className="px-3 py-2 text-right font-medium">Median</th>
-              <th className="px-3 py-2 text-right font-medium">Lowest bid</th>
-              <th className="px-3 py-2 text-right font-medium">Cutoff</th>
-              <th className="px-4 py-2 text-right font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...courses]
-              .sort((a, b) => b.fill - a.fill)
-              .map((c) => (
-                <tr key={c.code} className="border-b border-[#1E1E1E] last:border-0">
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
+      <table className="w-full text-xs sm:text-sm">
+        <thead>
+          <tr className="border-y border-[#222] text-left text-[10px] uppercase tracking-wider text-gray-500 sm:text-[11px]">
+            <th className="px-3 py-2 font-medium sm:px-4">Course</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">Bids/Seats</th>
+            <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Median</th>
+            <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Lowest</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">Cutoff</th>
+            <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...courses]
+            .sort((a, b) => b.fill - a.fill)
+            .map((c) => (
+              <tr key={c.code} className="border-b border-[#1E1E1E] last:border-0">
+                <td className="px-3 py-2 sm:px-4 sm:py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full sm:hidden"
+                      style={{ background: CONCENTRATIONS[c.concentration].color }}
+                      aria-hidden="true"
+                    />
+                    <span className="hidden sm:inline-flex">
                       <ConcBadge c={c.concentration} />
-                      <span className="text-white">{c.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-300">
-                    {c.count} / {c.capacity}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-300">{c.count ? fmt(c.median) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-300">{c.count ? fmt(c.min) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
-                    {c.cutoff == null ? (
-                      <span className="text-xs font-medium text-[#4ADE80]">None</span>
-                    ) : (
-                      <span className="text-[#FF6B6B]">{fmt(c.cutoff)}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <StatusBadge s={c.status} />
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+                    </span>
+                    <span className="text-white">{c.name}</span>
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-300 sm:px-3 sm:py-2.5">
+                  {c.count}/{c.capacity}
+                  <span className="block text-[10px] text-gray-500 sm:hidden">{pct(c.fill)}</span>
+                </td>
+                <td className="hidden px-3 py-2.5 text-right tabular-nums text-gray-300 sm:table-cell">
+                  {c.count ? fmt(c.median) : '—'}
+                </td>
+                <td className="hidden px-3 py-2.5 text-right tabular-nums text-gray-300 sm:table-cell">
+                  {c.count ? fmt(c.min) : '—'}
+                </td>
+                <td className="px-2 py-2 text-right font-semibold tabular-nums sm:px-3 sm:py-2.5">
+                  {c.cutoff == null ? (
+                    <span className="text-xs font-medium text-[#4ADE80]">None</span>
+                  ) : (
+                    <span className="text-[#FF6B6B]">{fmt(c.cutoff)}</span>
+                  )}
+                </td>
+                <td className="hidden px-4 py-2.5 text-right sm:table-cell">
+                  <StatusBadge s={c.status} />
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
     </Card>
   );
 }
@@ -539,7 +564,7 @@ function Planner({ courses }: { courses: CourseStats[] }) {
     setSelected((s) => (s.includes(code) ? s.filter((x) => x !== code) : [...s, code]));
 
   return (
-    <Card className="p-4">
+    <Card className="p-3 sm:p-4">
       <SectionTitle
         icon={Target}
         title="Bid planner"
@@ -697,7 +722,7 @@ function Insights({ data }: { data: SmartBidPayload }) {
   }, [data]);
 
   return (
-    <Card className="p-4">
+    <Card className="p-3 sm:p-4">
       <SectionTitle icon={Sparkles} title="What the live numbers say" />
       <ul className="space-y-2.5">
         {lines.map((l, i) => (
@@ -720,13 +745,19 @@ function Insights({ data }: { data: SmartBidPayload }) {
 
 function PlaceBid() {
   return (
-    <div className="flex max-w-xl flex-col gap-3 rounded-xl border border-[#665200] bg-[#1C1A0E] p-3.5 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-2.5">
-        <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-[#f7d344]" aria-hidden="true" />
-        <div>
-          <p className="text-sm font-semibold text-white">Haven&apos;t bid yet? Place your bid on the form.</p>
-          <p className="mt-0.5 text-xs text-gray-400">
-            The form is editable — already submitted? Use the same form to change your bid any time before the deadline.
+    <div className="flex max-w-xl items-center justify-between gap-3 rounded-xl border border-[#665200] bg-[#1C1A0E] p-2.5 sm:p-3.5">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Pencil className="mt-0.5 hidden h-4 w-4 shrink-0 text-[#f7d344] sm:block" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-white sm:text-sm">
+            <span className="sm:hidden">Bid on the form</span>
+            <span className="hidden sm:inline">Haven&apos;t bid yet? Place your bid on the form.</span>
+          </p>
+          <p className="mt-0.5 text-[11px] leading-snug text-gray-400 sm:text-xs">
+            <span className="sm:hidden">Form is editable — change your bid any time before the deadline.</span>
+            <span className="hidden sm:inline">
+              The form is editable — already submitted? Use the same form to change your bid any time before the deadline.
+            </span>
           </p>
         </div>
       </div>
@@ -734,7 +765,7 @@ function PlaceBid() {
         href={SMARTBID_FORM_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#f7d344] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ffe066]"
+        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg bg-[#f7d344] px-3 py-2 text-xs font-semibold text-black hover:bg-[#ffe066] sm:gap-1.5 sm:px-4 sm:text-sm"
       >
         Place your bid <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
       </a>
@@ -788,12 +819,16 @@ export function SmartBidTracker() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 pb-24">
-        <section className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#f7d344]">Term 3 · Elective bidding</p>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Live bid tracker</h1>
-            <p className="max-w-xl text-sm text-gray-400">
+      <main className="mx-auto max-w-6xl space-y-4 px-3 py-4 pb-24 sm:space-y-6 sm:px-4 sm:py-6">
+        <section className="flex flex-col gap-3 sm:gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0 space-y-2.5 sm:space-y-3">
+            <p className="hidden text-[11px] font-medium uppercase tracking-[0.18em] text-[#f7d344] sm:block">
+              Term 3 · Elective bidding
+            </p>
+            <h1 className="text-xl font-bold tracking-tight sm:text-3xl">
+              <span className="sm:hidden">Term 3 </span>Live bid tracker
+            </h1>
+            <p className="hidden max-w-xl text-sm text-gray-400 sm:block">
               Seats, bids and seat cutoffs for every Term 3 elective, straight from the batch&apos;s bidding sheet. Free
               for every student — no login.
             </p>
@@ -812,7 +847,7 @@ export function SmartBidTracker() {
           <Countdown />
         </section>
 
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <section className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-6">
           <Kpi loading={loading} label="Responses" value={fmt(data?.responses ?? 0)} sub="Students who filled the form" />
           <Kpi loading={loading} label="Active bids" value={fmt(data?.totals.activeBids ?? 0)} sub="Bids above 0 pts" />
           <Kpi loading={loading} label="Seats" value={fmt(data?.totals.seats ?? 0)} sub={`${courses.length} electives`} />
@@ -837,9 +872,9 @@ export function SmartBidTracker() {
         </section>
 
         <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <SectionTitle icon={TrendingUp} title="Electives" sub="Show distributions to compare bids across every course." />
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 sm:mb-3 sm:gap-3">
+            <SectionTitle icon={TrendingUp} title="Electives" sub="Tap a course's instructor to open their LinkedIn." />
+            <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
             <button
               onClick={() => setShowDist((o) => !o)}
               aria-pressed={showDist}
@@ -847,7 +882,7 @@ export function SmartBidTracker() {
                 showDist ? 'border-[#f7d344]/60 bg-[#1C1A0E] text-[#f7d344]' : 'border-[#222] bg-[#111] text-gray-400 hover:text-white'
               }`}
             >
-              {showDist ? 'Hide' : 'Show'} all distributions
+              {showDist ? 'Hide' : 'Show'} <span className="hidden sm:inline">all</span> distributions
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showDist ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
             <div className="flex gap-1 rounded-lg border border-[#222] bg-[#111] p-1" role="tablist" aria-label="Filter by concentration">
@@ -857,7 +892,7 @@ export function SmartBidTracker() {
                   role="tab"
                   aria-selected={filter === f}
                   onClick={() => setFilter(f)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-2.5 ${
                     filter === f ? 'bg-[#f7d344] text-black' : 'text-gray-400 hover:text-white'
                   }`}
                 >
@@ -867,7 +902,7 @@ export function SmartBidTracker() {
             </div>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
             {loading
               ? Array.from({ length: 6 }).map((_, i) => (
                   <Card key={i} className="h-72 animate-pulse">
@@ -882,11 +917,11 @@ export function SmartBidTracker() {
 
         {data && (
           <>
-            <section className="grid gap-3 lg:grid-cols-5">
-              <div className="lg:col-span-3">
+            <section className="grid gap-2.5 sm:gap-3 lg:grid-cols-5">
+              <div className="min-w-0 lg:col-span-3">
                 <ClearingTable courses={courses} />
               </div>
-              <div className="space-y-3 lg:col-span-2">
+              <div className="min-w-0 space-y-2.5 sm:space-y-3 lg:col-span-2">
                 <Insights data={data} />
                 <ConcentrationSplit data={data} />
               </div>

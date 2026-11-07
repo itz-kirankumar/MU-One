@@ -259,11 +259,32 @@ export function buildPayload(rawCsv: string, capacities: Record<string, number>)
     else concentrationCols.push(i);
   });
 
+  // A response is a row with at least one bid cell filled (0 counts). Rows that
+  // only carry a concentration choice (e.g. after a column was sorted or pasted
+  // on its own in the sheet) are not counted as responses.
+  const bidCols = Object.values(colByCode);
+  const responses = data.filter((r) => bidCols.some((i) => toNumber(r[i]) != null));
+
   const concentrationSplit: Record<Concentration, number> = { SAMA: 0, MAST: 0, FIFI: 0, DTP: 0 };
-  for (const r of data) {
-    for (const i of concentrationCols) {
-      const c = concentrationFromValue(r[i] ?? '');
-      if (c) concentrationSplit[c]++;
+  const courseByCode = Object.fromEntries(COURSES.map((c) => [c.code, c]));
+  const positiveBidIn = (r: string[], conc: Concentration) =>
+    Object.entries(colByCode).some(
+      ([code, i]) => courseByCode[code]?.concentration === conc && (toNumber(r[i]) ?? 0) > 0,
+    );
+  for (const r of responses) {
+    for (const [a, b] of CONCENTRATION_PAIRS) {
+      // Use the row's stated choice; if it's blank, infer it from where the row bid.
+      let chosen: Concentration | null = null;
+      for (const i of concentrationCols) {
+        const c = concentrationFromValue(r[i] ?? '');
+        if (c === a || c === b) chosen = c;
+      }
+      if (!chosen) {
+        const inA = positiveBidIn(r, a);
+        const inB = positiveBidIn(r, b);
+        if (inA !== inB) chosen = inA ? a : b;
+      }
+      if (chosen) concentrationSplit[chosen]++;
     }
   }
 
@@ -314,7 +335,7 @@ export function buildPayload(rawCsv: string, capacities: Record<string, number>)
     ok: true,
     fetchedAt: new Date().toISOString(),
     sheetUrl: SMARTBID_SHEET_URL,
-    responses: data.length,
+    responses: responses.length,
     concentrationSplit,
     courses,
     totals: {
