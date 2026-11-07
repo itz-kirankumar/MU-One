@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import {
   AlertTriangle,
+  ArrowUpRight,
+  Pencil,
   CheckCircle2,
   ChevronDown,
   Clock,
@@ -25,6 +27,7 @@ import {
   POINTS_PER_CREDIT_GUIDE,
   POINTS_RESERVE,
   SMARTBID_DEADLINE_ISO,
+  SMARTBID_FORM_URL,
   SMARTBID_SHEET_URL,
   rankForBid,
   type Concentration,
@@ -97,12 +100,12 @@ function useSmartBid() {
 
   const dataAge = data && now ? Math.max(0, now - new Date(data.fetchedAt).getTime()) : null;
   let state: SyncState = 'loading';
+  // Background refreshes keep the "Live" label; only the refresh icon spins.
   if (!data) state = error ? 'error' : 'loading';
-  else if (syncing) state = 'syncing';
   else if (error || (dataAge != null && dataAge > STALE_MS)) state = 'stale';
   else state = 'live';
 
-  return { data, error, state, refresh, now, lastOk, dataAge };
+  return { data, error, state, syncing, refresh, now, lastOk, dataAge };
 }
 
 // ─── Small UI pieces ─────────────────────────────────────────────────────────
@@ -156,11 +159,13 @@ function StatusBadge({ s }: { s: FillStatus }) {
 
 function LiveStatus({
   state,
+  syncing,
   dataAge,
   error,
   onRefresh,
 }: {
   state: SyncState;
+  syncing: boolean;
   dataAge: number | null;
   error: string | null;
   onRefresh: () => void;
@@ -190,19 +195,35 @@ function LiveStatus({
       </div>
       <button
         onClick={onRefresh}
-        disabled={state === 'syncing'}
+        disabled={syncing}
         className="inline-flex items-center gap-1.5 rounded-full border border-[#2A2A2A] bg-[#111] px-3 py-1.5 text-xs text-gray-300 transition-colors hover:border-[#f7d344]/50 hover:text-white disabled:opacity-50"
       >
-        <RefreshCw className={`h-3 w-3 ${state === 'syncing' ? 'animate-spin' : ''}`} aria-hidden="true" />
+        <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} aria-hidden="true" />
         Refresh
       </button>
     </div>
   );
 }
 
-function Countdown({ now }: { now: number }) {
+/** Frame-accurate clock so the milliseconds actually tick; isolated to this component. */
+function useFrameClock() {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      setNow(Date.now());
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return now;
+}
+
+function Countdown() {
+  const now = useFrameClock();
   const left = DEADLINE - now;
-  if (!now) return <div className="h-[86px] w-[190px]" aria-hidden="true" />;
+  if (!now) return <div className="h-[86px] w-[260px]" aria-hidden="true" />;
   if (left <= 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-[#FF6B6B]">
@@ -213,10 +234,12 @@ function Countdown({ now }: { now: number }) {
   const h = Math.floor(left / 3_600_000);
   const m = Math.floor((left % 3_600_000) / 60_000);
   const s = Math.floor((left % 60_000) / 1000);
+  const ms = Math.floor(left % 1000);
   const units = [
-    [h, 'hrs'],
-    [m, 'min'],
-    [s, 'sec'],
+    [String(h).padStart(2, '0'), 'hrs'],
+    [String(m).padStart(2, '0'), 'min'],
+    [String(s).padStart(2, '0'), 'sec'],
+    [String(ms).padStart(3, '0'), 'ms'],
   ] as const;
   return (
     <div>
@@ -226,8 +249,12 @@ function Countdown({ now }: { now: number }) {
       <div className="flex gap-2">
         {units.map(([v, l]) => (
           <div key={l} className="min-w-[58px] rounded-lg border border-[#2A2A2A] bg-[#111] px-2 py-1.5 text-center">
-            <div className={`text-xl font-bold tabular-nums ${h < 2 ? 'text-[#FF6B6B]' : 'text-white'}`}>
-              {String(v).padStart(2, '0')}
+            <div
+              className={`text-xl font-bold tabular-nums ${
+                l === 'ms' ? 'text-[#f7d344]' : h < 2 ? 'text-[#FF6B6B]' : 'text-white'
+              }`}
+            >
+              {v}
             </div>
             <div className="text-[10px] uppercase text-gray-500">{l}</div>
           </div>
@@ -286,8 +313,7 @@ function Histogram({ bids, color }: { bids: number[]; color: string }) {
   );
 }
 
-function CourseCard({ c }: { c: CourseStats }) {
-  const [open, setOpen] = useState(false);
+function CourseCard({ c, open, onToggle }: { c: CourseStats; open: boolean; onToggle: () => void }) {
   const { color } = CONCENTRATIONS[c.concentration];
   const st = STATUS_STYLE[c.status];
   return (
@@ -348,11 +374,11 @@ function CourseCard({ c }: { c: CourseStats }) {
         </div>
 
         <button
-          onClick={() => setOpen((o) => !o)}
+          onClick={onToggle}
           aria-expanded={open}
           className="mt-auto flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-white"
         >
-          {open ? 'Hide' : 'Show'} distribution
+          {open ? 'Hide' : 'Show'} distributions
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
         </button>
 
@@ -681,13 +707,39 @@ function Insights({ data }: { data: SmartBidPayload }) {
   );
 }
 
+function PlaceBid() {
+  return (
+    <div className="flex max-w-xl flex-col gap-3 rounded-xl border border-[#665200] bg-[#1C1A0E] p-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-2.5">
+        <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-[#f7d344]" aria-hidden="true" />
+        <div>
+          <p className="text-sm font-semibold text-white">Haven&apos;t bid yet? Place your bid on the form.</p>
+          <p className="mt-0.5 text-xs text-gray-400">
+            The form is editable — already submitted? Use the same form to change your bid any time before the deadline.
+          </p>
+        </div>
+      </div>
+      <a
+        href={SMARTBID_FORM_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#f7d344] px-4 py-2 text-sm font-semibold text-black hover:bg-[#ffe066]"
+      >
+        Place your bid <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+      </a>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 const FILTERS: ('ALL' | Concentration)[] = ['ALL', 'SAMA', 'MAST', 'FIFI', 'DTP'];
 
 export function SmartBidTracker() {
-  const { data, error, state, refresh, now, dataAge } = useSmartBid();
+  const { data, error, state, syncing, refresh, dataAge } = useSmartBid();
   const [filter, setFilter] = useState<'ALL' | Concentration>('ALL');
+  // One switch for every card: opening one distribution opens them all.
+  const [showDist, setShowDist] = useState(false);
   const loading = !data;
   const courses = data?.courses ?? [];
   const shown = filter === 'ALL' ? courses : courses.filter((c) => c.concentration === filter);
@@ -704,14 +756,24 @@ export function SmartBidTracker() {
               MU One <span className="text-gray-500">/</span> <span className="text-[#f7d344]">SmartBid</span>
             </span>
           </Link>
-          <a
-            href={SMARTBID_SHEET_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-white"
-          >
-            Source sheet <ExternalLink className="h-3 w-3" aria-hidden="true" />
-          </a>
+          <div className="flex items-center gap-3">
+            <a
+              href={SMARTBID_SHEET_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden items-center gap-1 text-xs text-gray-500 hover:text-white sm:inline-flex"
+            >
+              Source sheet <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            </a>
+            <a
+              href={SMARTBID_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md bg-[#f7d344] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#ffe066]"
+            >
+              Place your bid <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
         </div>
       </header>
 
@@ -724,12 +786,19 @@ export function SmartBidTracker() {
               Seats, bids and clearing prices for every Term 3 elective, straight from the batch&apos;s bidding sheet. Free
               for every student — no login.
             </p>
-            <LiveStatus state={state} dataAge={dataAge} error={error} onRefresh={() => void refresh()} />
+            <LiveStatus
+              state={state}
+              syncing={syncing}
+              dataAge={dataAge}
+              error={error}
+              onRefresh={() => void refresh()}
+            />
+            <PlaceBid />
             {state === 'error' && (
               <p className="text-xs text-[#FF6B6B]">Couldn&apos;t load the sheet ({error}). Retrying automatically.</p>
             )}
           </div>
-          <Countdown now={now} />
+          <Countdown />
         </section>
 
         <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
@@ -758,7 +827,18 @@ export function SmartBidTracker() {
 
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <SectionTitle icon={TrendingUp} title="Electives" sub="Tap a card to see its bid distribution." />
+            <SectionTitle icon={TrendingUp} title="Electives" sub="Show distributions to compare bids across every course." />
+            <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowDist((o) => !o)}
+              aria-pressed={showDist}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                showDist ? 'border-[#f7d344]/60 bg-[#1C1A0E] text-[#f7d344]' : 'border-[#222] bg-[#111] text-gray-400 hover:text-white'
+              }`}
+            >
+              {showDist ? 'Hide' : 'Show'} all distributions
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showDist ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
             <div className="flex gap-1 rounded-lg border border-[#222] bg-[#111] p-1" role="tablist" aria-label="Filter by concentration">
               {FILTERS.map((f) => (
                 <button
@@ -774,6 +854,7 @@ export function SmartBidTracker() {
                 </button>
               ))}
             </div>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loading
@@ -782,7 +863,9 @@ export function SmartBidTracker() {
                     <span className="sr-only">Loading</span>
                   </Card>
                 ))
-              : shown.map((c) => <CourseCard key={c.code} c={c} />)}
+              : shown.map((c) => (
+                  <CourseCard key={c.code} c={c} open={showDist} onToggle={() => setShowDist((o) => !o)} />
+                ))}
           </div>
         </section>
 

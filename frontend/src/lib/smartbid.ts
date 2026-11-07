@@ -6,6 +6,8 @@ export const SMARTBID_SHEET_ID = '1bOG_CBA592nkS79cpCidwDETTKnNIpYUm8Ugm-_Atf0';
 export const SMARTBID_RAW_GID = '87479504'; // Form responses
 export const SMARTBID_SNAPSHOT_GID = '0'; // Snapshot (capacity per course)
 export const SMARTBID_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SMARTBID_SHEET_ID}`;
+/** Bidding form — responses can be edited after submitting. */
+export const SMARTBID_FORM_URL = 'https://forms.gle/wZwicsruhAL2e7Ps9';
 
 /** Official deadline: 7 Nov 2026, 11:59:59 PM IST. */
 export const SMARTBID_DEADLINE_ISO = '2026-11-07T23:59:59+05:30';
