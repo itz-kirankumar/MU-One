@@ -47,7 +47,7 @@ const pct = (n: number) => `${(n * 100).toFixed(n < 0.1 ? 1 : 0)}%`;
 
 // ─── Data hook ───────────────────────────────────────────────────────────────
 
-type SyncState = 'loading' | 'live' | 'syncing' | 'stale' | 'error';
+type SyncState = 'loading' | 'live' | 'syncing' | 'stale' | 'error' | 'final';
 
 function useSmartBid() {
   const [data, setData] = useState<SmartBidPayload | null>(null);
@@ -57,15 +57,18 @@ function useSmartBid() {
   // 0 until mounted, so server and client render the same markup.
   const [now, setNow] = useState(0);
   const busy = useRef(false);
+  // Once the API serves the frozen final results there is nothing left to poll.
+  const isFinal = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (busy.current) return;
+    if (busy.current || isFinal.current) return;
     busy.current = true;
     setSyncing(true);
     try {
       const res = await fetch('/api/smartbid', { cache: 'no-store' });
       const body = (await res.json()) as SmartBidPayload | SmartBidError;
       if (!body.ok) throw new Error(body.error);
+      if (body.final) isFinal.current = true;
       setData(body);
       setError(null);
       setLastOk(Date.now());
@@ -102,6 +105,7 @@ function useSmartBid() {
   let state: SyncState = 'loading';
   // Background refreshes keep the "Live" label; only the refresh icon spins.
   if (!data) state = error ? 'error' : 'loading';
+  else if (data.final) state = 'final';
   else if (error || (dataAge != null && dataAge > STALE_MS)) state = 'stale';
   else state = 'live';
 
@@ -178,8 +182,18 @@ function LiveStatus({
     live: { dot: 'bg-[#4ADE80] animate-pulse', text: 'text-[#4ADE80]', label: 'Live' },
     stale: { dot: 'bg-[#FCD34D]', text: 'text-[#FCD34D]', label: 'Showing last snapshot' },
     error: { dot: 'bg-[#FF6B6B]', text: 'text-[#FF6B6B]', label: 'Sheet unreachable' },
+    final: { dot: 'bg-[#f7d344]', text: 'text-[#f7d344]', label: 'Final results' },
   };
   const m = map[state];
+  if (state === 'final') {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-full border border-[#2A2A2A] bg-[#111] px-3 py-1.5 text-xs" role="status">
+        <span className={`h-2 w-2 rounded-full ${m.dot}`} aria-hidden="true" />
+        <span className={`font-medium ${m.text}`}>{m.label}</span>
+        <span className="text-gray-500">· bidding closed 7 Nov, 11:59 PM IST</span>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div
@@ -479,14 +493,18 @@ function ConcentrationSplit({ data }: { data: SmartBidPayload }) {
 
 // ─── Clearing table ──────────────────────────────────────────────────────────
 
-function ClearingTable({ courses }: { courses: CourseStats[] }) {
+function ClearingTable({ courses, final }: { courses: CourseStats[]; final?: boolean }) {
   return (
     <Card className="overflow-hidden">
       <div className="p-3 pb-1 sm:p-4 sm:pb-2">
         <SectionTitle
           icon={Gauge}
           title="Seats vs bids"
-          sub="Cutoff = the bid holding the last seat if bidding closed now. Only exists once bids exceed seats."
+          sub={
+            final
+              ? 'Cutoff = the lowest bid that holds a seat in the final sheet. Only exists where bids exceed seats.'
+              : 'Cutoff = the bid holding the last seat if bidding closed now. Only exists once bids exceed seats.'
+          }
         />
       </div>
       <table className="w-full text-xs sm:text-sm">
@@ -568,7 +586,7 @@ function Planner({ courses }: { courses: CourseStats[] }) {
       <SectionTitle
         icon={Target}
         title="Bid planner"
-        sub="Pick courses and try a bid to see where it ranks right now. Nothing is submitted — this stays in your browser."
+        sub="Pick courses and try a bid to see where it ranks among the final bids. Nothing is submitted — this stays in your browser."
       />
 
       <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -696,15 +714,15 @@ function Insights({ data }: { data: SmartBidPayload }) {
         tone: 'warn',
         text: `${over.map((c) => c.name).join(', ')} ${over.length > 1 ? 'have' : 'has'} more bids than seats — a bid below ${over
           .map((c) => fmt(c.cutoff ?? 0))
-          .join(' / ')} pts would miss out right now.`,
+          .join(' / ')} pts ${data.final ? 'missed out in the final sheet' : 'would miss out right now'}.`,
       });
     } else {
       out.push({
         tone: 'good',
-        text: `No course is oversubscribed: ${fmt(data.totals.activeBids)} bids for ${fmt(data.totals.seats)} seats. Every bid above 0 currently wins a seat.`,
+        text: `No course is oversubscribed: ${fmt(data.totals.activeBids)} bids for ${fmt(data.totals.seats)} seats. Every bid above 0 ${data.final ? 'wins' : 'currently wins'} a seat.`,
       });
     }
-    if (filling.length) {
+    if (filling.length && !data.final) {
       out.push({
         tone: 'warn',
         text: `${filling.map((c) => `${c.name} (${pct(c.fill)})`).join(', ')} ${filling.length > 1 ? 'are' : 'is'} above 80% full — watch these close to the deadline.`,
@@ -723,7 +741,7 @@ function Insights({ data }: { data: SmartBidPayload }) {
 
   return (
     <Card className="p-3 sm:p-4">
-      <SectionTitle icon={Sparkles} title="What the live numbers say" />
+      <SectionTitle icon={Sparkles} title={data.final ? 'What the final numbers say' : 'What the live numbers say'} />
       <ul className="space-y-2.5">
         {lines.map((l, i) => (
           <li key={i} className="flex gap-2 text-sm leading-relaxed text-gray-300">
@@ -787,6 +805,7 @@ export function SmartBidTracker() {
   const shown = filter === 'ALL' ? courses : courses.filter((c) => c.concentration === filter);
   const highest = data?.totals.highestBid;
   const highestCourse = courses.find((c) => c.code === highest?.code);
+  const final = !!data?.final;
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white">
@@ -807,14 +826,16 @@ export function SmartBidTracker() {
             >
               Source sheet <ExternalLink className="h-3 w-3" aria-hidden="true" />
             </a>
-            <a
-              href={SMARTBID_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md bg-[#f7d344] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#ffe066]"
-            >
-              Place your bid <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </a>
+            {!final && (
+              <a
+                href={SMARTBID_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md bg-[#f7d344] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#ffe066]"
+              >
+                Place your bid <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -826,11 +847,13 @@ export function SmartBidTracker() {
               Term 3 · Elective bidding
             </p>
             <h1 className="text-xl font-bold tracking-tight sm:text-3xl">
-              <span className="sm:hidden">Term 3 </span>Live bid tracker
+              <span className="sm:hidden">Term 3 </span>
+              {final ? 'Final bid results' : 'Live bid tracker'}
             </h1>
             <p className="hidden max-w-xl text-sm text-gray-400 sm:block">
-              Seats, bids and seat cutoffs for every Term 3 elective, straight from the batch&apos;s bidding sheet. Free
-              for every student — no login.
+              {final
+                ? 'Final seats, bids and seat cutoffs for every Term 3 elective, from the batch’s bidding sheet after bidding closed. Free for every student — no login.'
+                : 'Seats, bids and seat cutoffs for every Term 3 elective, straight from the batch’s bidding sheet. Free for every student — no login.'}
             </p>
             <LiveStatus
               state={state}
@@ -839,7 +862,7 @@ export function SmartBidTracker() {
               error={error}
               onRefresh={() => void refresh()}
             />
-            <PlaceBid />
+            {data && !final && <PlaceBid />}
             {state === 'error' && (
               <p className="text-xs text-[#FF6B6B]">Couldn&apos;t load the sheet ({error}). Retrying automatically.</p>
             )}
@@ -904,7 +927,7 @@ export function SmartBidTracker() {
           </div>
           <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
             {loading
-              ? Array.from({ length: 6 }).map((_, i) => (
+              ? Array.from({ length: 7 }).map((_, i) => (
                   <Card key={i} className="h-72 animate-pulse">
                     <span className="sr-only">Loading</span>
                   </Card>
@@ -919,7 +942,7 @@ export function SmartBidTracker() {
           <>
             <section className="grid gap-2.5 sm:gap-3 lg:grid-cols-5">
               <div className="min-w-0 lg:col-span-3">
-                <ClearingTable courses={courses} />
+                <ClearingTable courses={courses} final={data.final} />
               </div>
               <div className="min-w-0 space-y-2.5 sm:space-y-3 lg:col-span-2">
                 <Insights data={data} />

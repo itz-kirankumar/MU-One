@@ -38,6 +38,8 @@ export interface CourseMeta {
   /** Fallback only — live capacity comes from the snapshot tab. */
   capacity: number;
   faculty: { name: string; linkedin?: string }[];
+  /** Open only to one programme (e.g. HR&OS); bids here don't signal a concentration choice. */
+  programmeOnly?: boolean;
 }
 
 export const COURSES: CourseMeta[] = [
@@ -95,6 +97,15 @@ export const COURSES: CourseMeta[] = [
       { name: 'Malthi S', linkedin: 'https://www.linkedin.com/in/malthis/' },
     ],
   },
+  {
+    code: 'MAST7311',
+    name: 'Diversity, Equity & Inclusion (HR&OS only)',
+    concentration: 'MAST',
+    credits: 1,
+    capacity: 40,
+    faculty: [{ name: 'Sainath Srinivasan' }],
+    programmeOnly: true,
+  },
 ];
 
 export type FillStatus = 'open' | 'filling' | 'oversubscribed';
@@ -127,6 +138,8 @@ export interface CourseStats extends CourseMeta {
 export interface SmartBidPayload {
   ok: true;
   fetchedAt: string;
+  /** True once bidding has closed and the numbers come from the frozen final export. */
+  final?: boolean;
   sheetUrl: string;
   responses: number;
   concentrationSplit: Record<Concentration, number>;
@@ -269,7 +282,10 @@ export function buildPayload(rawCsv: string, capacities: Record<string, number>)
   const courseByCode = Object.fromEntries(COURSES.map((c) => [c.code, c]));
   const positiveBidIn = (r: string[], conc: Concentration) =>
     Object.entries(colByCode).some(
-      ([code, i]) => courseByCode[code]?.concentration === conc && (toNumber(r[i]) ?? 0) > 0,
+      ([code, i]) =>
+        courseByCode[code]?.concentration === conc &&
+        !courseByCode[code]?.programmeOnly &&
+        (toNumber(r[i]) ?? 0) > 0,
     );
   for (const r of responses) {
     for (const [a, b] of CONCENTRATION_PAIRS) {
